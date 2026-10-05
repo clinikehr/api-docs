@@ -1,0 +1,472 @@
+---
+title: "CRM contacts and pipelines"
+description: "Read pipelines, create and update contacts, search by email or phone, and log activities. Creating a contact never starts outreach."
+icon: "/images/icons/layers.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+A clinic's **CRM** is where it keeps people who are not yet patients: a website enquiry, a lead from an event, someone on a
+waiting list, a referral. Each person is a **contact**. A contact sits at a **stage** (for example "New" or "Booked") of a
+**pipeline**, and has a **timeline** of **activities**: a call, an email, a note.
+
+With these endpoints you can:
+
+- read the clinic's pipelines and their stages;
+- list, read, create and update contacts;
+- look a contact up by exact email or phone number;
+- read a contact's timeline and add an entry to it.
+
+A contact is not a patient. It is not part of the patient's chart, and these routes never convert a contact into a patient
+or send a message to anyone.
+
+<Availability keyKind={['clinic', 'organization']} plan="Enterprise subscription for the clinic (pipelines: Team)" scopes="crm.pipelines:read · crm.contacts:read/write · crm.activities:read/write" note="Contacts and activities are patient information. A test key reaches only your sandbox." />
+
+## Who can use it
+
+| You want to | Permission |
+| --- | --- |
+| List pipelines and stages | `crm.pipelines:read` |
+| List, read or search contacts | `crm.contacts:read` |
+| Create or update a contact | `crm.contacts:write` |
+| Read a contact's timeline | `crm.activities:read` |
+| Add to a contact's timeline | `crm.activities:write` |
+
+Pipelines and stages are reference data with no person in them, so `crm.pipelines:read` is not a patient-data permission and
+is available to a clinic on a Team subscription or above. **Contacts and activities hold people's details**, so they are
+patient-data permissions: the clinic's API add-on, the accepted data agreement (or, for an organization, patient-data
+approval for the **CRM contacts and activities** kind and a connection the clinic has approved), and an Enterprise
+subscription for the clinic. See [Patient information access](/patient-data-access), [Permissions](/permissions) and
+[Authentication](/authentication). A missing requirement answers `403` with a `code` that names it, see [Errors](/errors).
+
+**Try it in the sandbox first.** A **test** key reaches only your workspace's sandbox, which has one invented pipeline and
+only the contacts your own test key has created. Nothing real is involved.
+
+| Operation | Endpoint |
+| --- | --- |
+| [List pipelines](#list-pipelines-and-stages) | `GET /v1/clinics/{clinic_id}/crm/pipelines` |
+| [List contacts](#list-contacts) | `GET /v1/clinics/{clinic_id}/crm/contacts` |
+| [Create a contact](#create-a-contact) | `POST /v1/clinics/{clinic_id}/crm/contacts` |
+| [Search contacts](#search-contacts-by-email-or-phone) | `POST /v1/clinics/{clinic_id}/crm/contacts/search` |
+| [Read one contact](#read-one-contact) | `GET /v1/clinics/{clinic_id}/crm/contacts/{contact_id}` |
+| [Update a contact](#update-a-contact) | `PATCH /v1/clinics/{clinic_id}/crm/contacts/{contact_id}` |
+| [List a contact's activities](#list-a-contacts-activities) | `GET /v1/clinics/{clinic_id}/crm/contacts/{contact_id}/activities` |
+| [Log an activity](#log-an-activity) | `POST /v1/clinics/{clinic_id}/crm/contacts/{contact_id}/activities` |
+
+Every example uses a test key and a placeholder clinic. Replace `YOUR_CLINIC_ID` and the ids with your own.
+
+## List pipelines and stages
+
+Lists the clinic's pipelines, each with its stages in order. Read this first: a contact's `pipeline_id` and `stage_id` come
+from here.
+
+`GET /v1/clinics/{clinic_id}/crm/pipelines`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/crm/pipelines" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "6a1f0c52-1111-4a2b-9c3d-0123456789ab",
+      "name": "Example Leads",
+      "is_default": true,
+      "sort_order": 0,
+      "created_at": "2026-10-01T09:00:00Z",
+      "updated_at": "2026-10-01T09:00:00Z",
+      "stages": [
+        { "id": "7b2e1d63-2222-4b3c-8d4e-123456789abc", "name": "New", "sort_order": 0, "is_won": false, "is_lost": false, "probability": 10, "color": "#3b82f6" },
+        { "id": "8c3f2e74-3333-4c4d-9e5f-23456789abcd", "name": "Booked", "sort_order": 1, "is_won": true, "is_lost": false, "probability": 100, "color": "#22c55e" }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `is_default` | The pipeline a new contact goes into when you do not name one. |
+| `stages[].sort_order` | The order of the stages, first to last. |
+| `stages[].is_won` / `is_lost` | Whether reaching this stage means the contact was won or lost. |
+| `stages[].probability` | The clinic's own estimate, in percent, for a contact at this stage, or `null`. |
+
+Archived pipelines are not returned. The list is not paginated.
+
+## List contacts
+
+Lists the clinic's contacts, newest first.
+
+`GET /v1/clinics/{clinic_id}/crm/contacts`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+| `stage_id` | query, uuid | No | Only contacts at this stage. |
+| `updated_since` | query, RFC 3339 timestamp | No | Only contacts changed at or after this time. |
+| `limit` | query, integer 1 to 100 | No | Page size. Default 25. |
+| `starting_after` | query, string | No | The `next_cursor` from the previous page. See [Pagination](/pagination). |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/crm/contacts?limit=25" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "9d4a3f85-4444-4d5e-8f6a-3456789abcde",
+      "owner_staff_id": null,
+      "record_type": "lead",
+      "first_name": "Ada",
+      "last_name": "Example",
+      "email": "ada.example@example.com",
+      "phone": "+10000000000",
+      "company": null,
+      "lifecycle_stage": "lead",
+      "pipeline_id": "6a1f0c52-1111-4a2b-9c3d-0123456789ab",
+      "stage_id": "7b2e1d63-2222-4b3c-8d4e-123456789abc",
+      "status": "open",
+      "source": "manual",
+      "referral_source_id": null,
+      "referred_by_contact_id": null,
+      "interest": "Annual check-up",
+      "desired_service_id": null,
+      "desired_provider_id": null,
+      "estimated_value_cents": null,
+      "currency": null,
+      "priority": "normal",
+      "score": 0,
+      "marketing_opt_in": false,
+      "sms_opt_in": false,
+      "consent_at": null,
+      "consent_source": null,
+      "do_not_contact": false,
+      "unsubscribed_at": null,
+      "tags": ["website"],
+      "custom_fields": {},
+      "converted_patient_id": null,
+      "converted_at": null,
+      "lost_reason": null,
+      "last_activity_at": null,
+      "next_task_at": null,
+      "created_at": "2026-10-05T09:00:00Z",
+      "updated_at": "2026-10-05T09:00:00Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+### What a contact looks like
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The contact's id. |
+| `record_type` | `lead`, `prospect`, `waitlist`, `referral` or `contact`. |
+| `first_name`, `last_name`, `email`, `phone`, `company` | Who they are. Any may be `null`. |
+| `lifecycle_stage` | `lead`, `inquiry`, `prospect`, `waitlist`, `customer` or `lost`. |
+| `pipeline_id`, `stage_id` | Where they sit. From the pipelines list. |
+| `status` | The contact's status, set by the clinic (a new contact is `open`). Read-only. |
+| `source` | Where the contact came from. Free text, for example `manual` or `website`. |
+| `owner_staff_id` | The clinic staff member who owns the contact, or `null`. |
+| `referral_source_id`, `referred_by_contact_id` | The clinic's referral source and the contact who referred this one. |
+| `interest`, `desired_service_id`, `desired_provider_id` | What they asked about. |
+| `estimated_value_cents`, `currency` | The clinic's estimate of the contact's value, in minor units. |
+| `priority` | `low`, `normal` or `high`. |
+| `score` | The clinic's lead score. Read-only. |
+| `marketing_opt_in`, `sms_opt_in` | Whether the person agreed to marketing email and SMS. |
+| `consent_at`, `consent_source` | When and how marketing consent was recorded. |
+| `do_not_contact`, `unsubscribed_at` | The clinic's do-not-contact flag and when the person unsubscribed. Read-only. |
+| `tags`, `custom_fields` | Your labels (a list of strings) and free-form values (an object). |
+| `converted_patient_id`, `converted_at`, `lost_reason` | Set by the clinic when a contact becomes a patient or is lost. Read-only. |
+| `last_activity_at`, `next_task_at` | The latest timeline entry and the next task due. |
+| `created_at`, `updated_at` | Timestamps. |
+
+Internal fields, including the person's unsubscribe link, are never returned.
+
+## Create a contact
+
+Adds a contact. **It never starts outreach:** creating a contact through the API does not start any of the clinic's
+automations and does not enrol the person in any marketing journey, even if the clinic has them switched on for new contacts.
+
+`POST /v1/clinics/{clinic_id}/crm/contacts`
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `first_name`, `last_name`, `email`, `phone` | string or null | At least one of the four | Who they are. An email must look like an email, and a disposable or relay email domain is refused. |
+| `company` | string or null | No | Their organization. |
+| `record_type` | `lead`, `prospect`, `waitlist`, `referral`, `contact` | No | Default `lead`. |
+| `lifecycle_stage` | `lead`, `inquiry`, `prospect`, `waitlist`, `customer`, `lost` | No | Default `lead`. |
+| `pipeline_id` | uuid or null | No | Default: the clinic's default pipeline. |
+| `stage_id` | uuid or null | No | Default: the first stage of the pipeline. |
+| `source` | string | No | Default `manual`. Say where the contact came from, for example `your-app`. |
+| `owner_staff_id` | uuid or null | No | The staff member who owns it. |
+| `referral_source_id`, `desired_service_id`, `desired_provider_id` | uuid or null | No | Links to the clinic's own referral source, service and provider. |
+| `interest` | string or null | No | What they asked about. |
+| `estimated_value_cents` | integer or null | No | In minor units. |
+| `priority` | `low`, `normal`, `high` | No | Default `normal`. |
+| `marketing_opt_in` | boolean | No | Default `false`. Send `true` only if the person agreed. |
+| `sms_opt_in` | boolean | No | Default `false`. |
+| `tags` | array of strings | No | Labels. |
+| `custom_fields` | object | No | Free-form values. |
+
+A field not on this list (including `status`, `score`, `do_not_contact` and the conversion fields) is refused with
+`invalid_request`, naming it.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/crm/contacts" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "first_name": "Ada",
+        "last_name": "Example",
+        "email": "ada.example@example.com",
+        "interest": "Annual check-up",
+        "source": "your-app",
+        "tags": ["website"]
+      }'
+```
+
+The answer is the new contact, in the same shape as the [contact above](#what-a-contact-looks-like).
+
+**`Idempotency-Key` is required on this route.** A retry with the same key and the same body returns the same contact
+instead of creating a second one. See [Retries and duplicates](/retries-and-idempotency).
+
+When `marketing_opt_in` is `true`, the contact is stamped with the time of consent and `consent_source` is set to the
+contact's `source`.
+
+## Search contacts by email or phone
+
+Finds contacts whose email or phone is **exactly** what you send. Use it to check whether someone is already a contact
+before you create them. The identifier goes in the body, never in the URL, so it does not end up in logs.
+
+`POST /v1/clinics/{clinic_id}/crm/contacts/search`
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `email` | string | One of the two | The exact email address. |
+| `phone` | string | One of the two | The exact phone number, written the way the clinic stored it. |
+
+At least one of `email` and `phone` is required. It is an exact match only: never a name, never a partial value. You get at
+most **25** contacts, newest first, and no pagination.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/crm/contacts/search" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "ada.example@example.com" }'
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "9d4a3f85-4444-4d5e-8f6a-3456789abcde",
+      "owner_staff_id": null,
+      "record_type": "lead",
+      "first_name": "Ada",
+      "last_name": "Example",
+      "email": "ada.example@example.com",
+      "phone": "+10000000000",
+      "company": null,
+      "lifecycle_stage": "lead",
+      "pipeline_id": "6a1f0c52-1111-4a2b-9c3d-0123456789ab",
+      "stage_id": "7b2e1d63-2222-4b3c-8d4e-123456789abc",
+      "status": "open",
+      "source": "manual",
+      "referral_source_id": null,
+      "referred_by_contact_id": null,
+      "interest": "Annual check-up",
+      "desired_service_id": null,
+      "desired_provider_id": null,
+      "estimated_value_cents": null,
+      "currency": null,
+      "priority": "normal",
+      "score": 0,
+      "marketing_opt_in": false,
+      "sms_opt_in": false,
+      "consent_at": null,
+      "consent_source": null,
+      "do_not_contact": false,
+      "unsubscribed_at": null,
+      "tags": [
+        "website"
+      ],
+      "custom_fields": {},
+      "converted_patient_id": null,
+      "converted_at": null,
+      "lost_reason": null,
+      "last_activity_at": null,
+      "next_task_at": null,
+      "created_at": "2026-10-05T09:00:00Z",
+      "updated_at": "2026-10-05T09:00:00Z"
+    }
+  ]
+}
+```
+
+Each result is the full contact, exactly as reading it by id returns it, including `do_not_contact`, `unsubscribed_at` and
+`consent_at`. Check those before you contact anyone.
+
+## Read one contact
+
+`GET /v1/clinics/{clinic_id}/crm/contacts/{contact_id}`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+| `contact_id` | path, uuid | Yes | The contact. |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/crm/contacts/CONTACT_ID" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+The answer is `{ "data": { … } }` with the full contact. A contact that does not exist, or belongs to another clinic, answers
+`404 not_found`.
+
+## Update a contact
+
+Changes some fields of a contact. **Fields you leave out are unchanged. A field you send as JSON `null` is cleared** (for a
+field that can be empty).
+
+`PATCH /v1/clinics/{clinic_id}/crm/contacts/{contact_id}`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+| `contact_id` | path, uuid | Yes | The contact. |
+
+The body can carry any of: `record_type`, `first_name`, `last_name`, `email`, `phone`, `company`, `lifecycle_stage`,
+`pipeline_id`, `stage_id`, `source`, `owner_staff_id`, `referral_source_id`, `interest`, `desired_service_id`,
+`desired_provider_id`, `estimated_value_cents`, `priority`, `tags`, `custom_fields`, `marketing_opt_in`, `sms_opt_in`. The
+values are the same as when creating. To move a contact along the pipeline, send a new `stage_id`.
+
+**These are never writable here:** `status`, `score`, `do_not_contact`, `unsubscribed_at`, `converted_patient_id`,
+`converted_at` and `lost_reason`. They belong to the clinic. Sending one is refused with `invalid_request`.
+
+```bash
+curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/crm/contacts/CONTACT_ID" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "stage_id": "STAGE_ID", "phone": null, "tags": ["website", "follow-up"] }'
+```
+
+The answer is the updated contact. Setting `marketing_opt_in` to `true` records the time of consent and clears any
+unsubscribed time. A body with no recognised field is refused with `invalid_request`. This route has no `Idempotency-Key`.
+Sending the same change twice leaves the contact in the same state.
+
+## List a contact's activities
+
+Returns the contact's timeline, newest first.
+
+`GET /v1/clinics/{clinic_id}/crm/contacts/{contact_id}/activities`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+| `contact_id` | path, uuid | Yes | The contact. |
+| `limit` | query, integer 1 to 100 | No | Page size. Default 25. |
+| `starting_after` | query, string | No | The `next_cursor` from the previous page. See [Pagination](/pagination). |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/crm/contacts/CONTACT_ID/activities" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "ae5b4096-5555-4e6f-9a7b-456789abcdef",
+      "contact_id": "9d4a3f85-4444-4d5e-8f6a-3456789abcde",
+      "actor_staff_id": null,
+      "type": "call",
+      "subject": "Example enquiry call",
+      "body": "Asked about check-up availability.",
+      "metadata": {},
+      "occurred_at": "2026-10-05T09:30:00Z",
+      "created_at": "2026-10-05T09:30:00Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `type` | `note`, `call`, `email`, `sms`, `meeting`, `stage_change`, `status_change`, `task_done`, `system` or `campaign_send`. |
+| `subject`, `body` | The entry's title and text. |
+| `metadata` | Extra values, as an object. |
+| `actor_staff_id` | The staff member who made the entry. It is `null` for an entry made through the API. |
+| `occurred_at` | When it happened. |
+
+A contact that does not exist, or belongs to another clinic, answers `404 not_found`.
+
+## Log an activity
+
+Adds an entry to a contact's timeline. It also updates the contact's `last_activity_at`.
+
+`POST /v1/clinics/{clinic_id}/crm/contacts/{contact_id}/activities`
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `type` | string | Yes | One of the types listed above. |
+| `subject` | string or null | No | A short title. |
+| `body` | string or null | No | The text. |
+| `metadata` | object | No | Extra values. |
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/crm/contacts/CONTACT_ID/activities" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "type": "note", "subject": "Example follow-up", "body": "Asked us to call back on Monday." }'
+```
+
+The answer is the new activity, in the shape above. Its `occurred_at` is the moment of your request, and `actor_staff_id`
+is `null`. This route has no `Idempotency-Key`, so a retry after a timeout adds a second entry; read the timeline before
+retrying if you need to be sure.
+
+## Things to know
+
+**Refusals you may see**
+
+| Code | Status | Means |
+| --- | --- | --- |
+| `invalid_request` | `400` | A field is not recognised or not writable, an email is invalid or its domain is not accepted, a create has none of name, email and phone, a search has neither email nor phone, an activity `type` is not one of the list, or an update names no recognised field. |
+| `not_found` | `404` | The contact does not exist, or you may not see it. The two are never told apart. |
+| `idempotency_key_conflict` | `409` | The `Idempotency-Key` was already used for a different contact. |
+| `idempotency_key_reused` | `409` | A request with this key is still being processed. Wait and retry. |
+| `scope_missing`, `plan_required`, `agreement_required` and the other permission codes | `403` | See [Errors](/errors) and [Patient information access](/patient-data-access). |
+
+**Pagination.** The contacts list and the activities list are paginated with `limit` and `starting_after`. The pipelines
+list and a search are not. See [Pagination](/pagination).
+
+**FHIR.** These routes return JSON only.
+
+**Reading is recorded.** Reading, listing or searching contacts is recorded in the clinic's access log, so a clinic can see
+what your key looked at.
+
+## Common tasks
+
+**Add a website enquiry without duplicating someone.**
+1. `POST …/crm/contacts/search` with the email.
+2. If `data` is empty, `POST …/crm/contacts` with a fresh `Idempotency-Key`.
+3. If it found a contact, `POST …/crm/contacts/{id}/activities` with a `note` describing the new enquiry.
+
+**Move a contact to the next stage.** `GET …/crm/pipelines` to find the stage id, then `PATCH …/crm/contacts/{id}` with
+`{ "stage_id": "…" }`.
+
+**Pull everything that changed since your last sync.** `GET …/crm/contacts?updated_since=…`, following `next_cursor`
+until `has_more` is `false`.

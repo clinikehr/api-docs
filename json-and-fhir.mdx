@@ -1,0 +1,300 @@
+---
+title: "Response formats: JSON and FHIR"
+description: "The two formats this API answers in, how to read each one, and how to ask for FHIR. Includes the same allergy shown both ways."
+icon: "/images/icons/layers.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+Every request to this API gets an answer in one of two formats:
+
+- **Plain JSON** is the default. It is the API's own, simple shape. If you do not ask for anything else, this is what you get.
+- **FHIR** is a health-care industry standard. You get it only when you ask for it, and only on the resources listed [below](#which-resources-can-answer-in-fhir).
+
+They describe the **same record**. Choosing FHIR does not reach different data, use a different key, or skip any
+permission. It changes only the shape of the answer. If you are building your own app, plain JSON is almost always the
+easier choice. FHIR is for when another system you must talk to already expects it.
+
+<Availability keyKind={['clinic', 'organization']} plan="Same as the endpoint you call" note="FHIR is a way of asking, not a separate feature. The permissions and plan for a call do not change." />
+
+## Plain JSON
+
+### Single records and lists
+
+Some endpoints return **one record**. Some return a **list**. The shapes differ a little, and each endpoint's reference
+page shows exactly which it uses.
+
+A **list** is wrapped in an object with the records under `data`:
+
+```json
+{
+  "data": [ { "id": "…" }, { "id": "…" } ],
+  "has_more": true,
+  "next_cursor": "…"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `data` | The records for this page. |
+| `has_more` | `true` if another page exists. |
+| `next_cursor` | Pass it back as `starting_after` to get the next page. `null` when `has_more` is `false`. |
+
+Use `limit` (default 25, maximum 100) to choose the page size. See [Pagination](/pagination) for how to read to the end.
+A few list-like endpoints are different on purpose. A search that is capped (for example [pharmacy search](/pharmacy-listings))
+returns only `data`, and the [change feed](/events) uses `events` and `next_after`.
+
+A **single record** is wrapped as `{ "data": { … } }` on most endpoints. A few return the record directly, with no
+wrapper: [`GET /v1/me`](/authentication), one inventory item, and a pharmacy's [listing profile](/pharmacy-listings#one-pharmacys-profile)
+are examples. Check the endpoint before you write code that unwraps it.
+
+### Ids, dates and times
+
+- **Ids** are UUIDs, written as text, such as `5b0c6f0e-1111-4a2b-9c3d-0123456789ab`. Treat them as opaque strings: store and send them back unchanged.
+- **Timestamps** are RFC 3339 date-times such as `2026-10-01T09:00:00Z`. Send them in the same form to filters like `updated_since`.
+- **Dates** with no time of day, such as a date of birth or an onset date, are plain `2019-05-01` (year, month, day).
+
+### Money
+
+There are two shapes today, and each endpoint's page says which it uses:
+
+- A **money object**, where the amount is **text** so no digit is ever lost: `{ "amount": "1200.00", "currency": "NGN" }`. `currency` is the three-letter ISO 4217 code of the clinic's own currency. Read `amount` as a decimal, never as a floating-point number.
+- A **plain number**, for example an appointment's payment amount or an insurance co-pay. The currency is not repeated beside it: it is the clinic's own.
+
+Never add up amounts from two clinics without checking their currencies. If a price was never set, you get `null`,
+never `0`.
+
+### Fields that can be `null`
+
+A field that has no value is returned as `null`. It is **not left out**. So `"address_line2": null` means "this has
+no value", and you can always rely on the key being there. Do not treat `null` as zero, "no", or an empty string. An empty list
+(`[]`) is different again: it means the clinic has recorded none, and **not** that a patient has none. For allergies
+in particular, see [Allergies](/allergies).
+
+### Errors
+
+A failed request always returns `application/problem+json`, whatever endpoint you called:
+
+```json
+{
+  "type": "https://developer.clinikehr.com/errors/invalid_request",
+  "title": "Invalid request",
+  "status": 400,
+  "code": "invalid_request",
+  "request_id": "req_01example",
+  "errors": [ { "pointer": "/limit", "message": "must be <= 100" } ]
+}
+```
+
+Branch your code on `code`, which is stable, not on `title` or `detail`, which may be reworded. `errors`, when present,
+lists each field that was wrong. `pointer` says where in your request, and `message` says why. Quote `request_id` if you
+contact support. Every `code` is listed on [Errors](/errors).
+
+## FHIR
+
+### What FHIR is
+
+**FHIR** (say "fire") is a standard, published by the health-care standards body HL7, for how health records are shaped
+when systems exchange them. Hospitals, labs, insurers and health apps around the world use it, so a record in FHIR
+means the same thing to all of them. This API speaks FHIR **version R4**.
+
+Three ideas are enough to start:
+
+- A **resource** is one kind of health record, written as a JSON object. Every resource has a `resourceType` that names its kind: `Patient`, `Appointment`, `AllergyIntolerance`, `Condition`, and so on, plus an `id`.
+- A resource points at another with a **reference**, a short text such as `"Patient/9d2e7a10-2222-4b3c-8d4e-123456789abc"`: the kind, a slash, and the id.
+- A **Bundle** is a resource that holds a list of other resources. When you ask for a list as FHIR, you get a `Bundle` of `type: "searchset"`, which is FHIR's word for "the results of a search".
+
+Many values in FHIR are **codes** from a shared vocabulary, written as a `system` (whose vocabulary) and a `code`
+(the entry in it). That is how `active` or a medicine's RxNorm number means the same thing everywhere.
+
+### How to ask for FHIR
+
+Add one header to a request: `Accept: application/fhir+json`.
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/allergies?patient_id=PATIENT_ID" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Accept: application/fhir+json"
+```
+
+- **The header is the only way to ask.** There is no query-string switch and no separate `/fhir` address. A query parameter such as `_format` is not recognised and is refused with `400`.
+- **Leave the header off and you get plain JSON.**
+- **If an endpoint has no FHIR form, the header is ignored.** You get plain JSON rather than an error. This applies to every endpoint that is not in the list below, such as listings, events and outside care providers.
+- **A FHIR answer has the content type `application/fhir+json`.**
+- **Everything else is the same as plain JSON**: the same URL, key, permission, query parameters (under our own names, such as `patient_id`), `limit` and `starting_after`, rate limits and audit trail.
+- **A list is a `Bundle`.** It has a `link` of `relation: "self"` and, only when another page exists, a `link` of `relation: "next"` that already carries your `starting_after`. Each `entry` has a `fullUrl` and the `resource`. There is **no `total`**, because the total is never counted.
+- **A single read is the bare resource**, with no `data` wrapper.
+
+Writing: `Content-Type: application/fhir+json` on a request body is accepted for **Patient**, **Appointment**,
+**DocumentReference** (a draft note) and **Condition**. Every other resource is read-only as FHIR. A write is
+**answered in plain JSON**, even when you sent FHIR. The full rules, with what is and is not accepted, are on [FHIR R4](/fhir).
+
+### Which resources can answer in FHIR
+
+| FHIR resource | What it is | Plain JSON endpoint |
+| --- | --- | --- |
+| `Patient` | A patient | `/v1/clinics/{clinic_id}/patients` |
+| `Appointment` | An appointment | `/v1/clinics/{clinic_id}/appointments` |
+| `DocumentReference` | A clinical note | `/v1/clinics/{clinic_id}/notes` |
+| `AllergyIntolerance` | An allergy | `/v1/clinics/{clinic_id}/allergies` |
+| `Condition` | A problem-list entry | `/v1/clinics/{clinic_id}/conditions` |
+| `MedicationStatement` | A medicine a patient reports | `/v1/clinics/{clinic_id}/medication-statements` |
+| `MedicationRequest` | A prescription | `/v1/clinics/{clinic_id}/prescriptions` |
+| `ServiceRequest` | A referral | `/v1/clinics/{clinic_id}/referrals` |
+| `Encounter` | A visit, without its text | `/v1/clinics/{clinic_id}/encounters` |
+| `Coverage` | A patient's insurance | `/v1/clinics/{clinic_id}/coverages` |
+| `Organization` | An enabled insurance payer | `/v1/clinics/{clinic_id}/payers` |
+| `Practitioner` | A clinic clinician | `/v1/clinics/{clinic_id}/providers` |
+| `MedicationKnowledge` | A medicine in the catalogue | `/v1/clinics/{clinic_id}/inventory/items` |
+
+Each supports both a list (a search) and a single read. You can confirm the list any time. `GET /v1/metadata`
+returns a FHIR `CapabilityStatement` that names exactly what is supported, and it needs **no key**:
+
+```bash
+curl "https://api.clinikehr.com/v1/metadata"
+```
+
+### The same record, both ways
+
+One allergy, read as plain JSON, then as FHIR.
+
+**Plain JSON** (`GET /v1/clinics/YOUR_CLINIC_ID/allergies/ALLERGY_ID`):
+
+```json
+{
+  "data": {
+    "id": "5b0c6f0e-1111-4a2b-9c3d-0123456789ab",
+    "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+    "entry": "structured",
+    "substance": { "text": "Penicillin", "code": { "system": "rxnorm", "code": "7980", "display": "Penicillin G" } },
+    "category": ["medication"],
+    "criticality": "high",
+    "type": "allergy",
+    "clinical_status": "active",
+    "verification_status": "confirmed",
+    "reactions": [{ "manifestation": ["hives", "swelling"], "severity": "severe", "description": null }],
+    "onset_date": "2019-05-01",
+    "note": "Reaction in childhood.",
+    "recorded_by": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+    "source": "clinic",
+    "review_status": "confirmed",
+    "created_at": "2026-10-01T09:00:00Z"
+  }
+}
+```
+
+**FHIR** (the same request with `Accept: application/fhir+json`):
+
+```json
+{
+  "resourceType": "AllergyIntolerance",
+  "id": "5b0c6f0e-1111-4a2b-9c3d-0123456789ab",
+  "meta": { "tag": [{ "system": "https://api.clinikehr.com/fhir/tenant", "code": "YOUR_CLINIC_ID" }] },
+  "patient": { "reference": "Patient/9d2e7a10-2222-4b3c-8d4e-123456789abc" },
+  "clinicalStatus": {
+    "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical", "code": "active" }]
+  },
+  "verificationStatus": {
+    "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification", "code": "confirmed" }]
+  },
+  "type": "allergy",
+  "category": ["medication"],
+  "criticality": "high",
+  "code": {
+    "coding": [{ "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "7980" }],
+    "text": "Penicillin"
+  },
+  "onsetDateTime": "2019-05-01",
+  "recordedDate": "2026-10-01T09:00:00Z",
+  "recorder": { "reference": "Practitioner/c3f1b2a4-3333-4c4d-9e5f-23456789abcd" },
+  "note": [{ "text": "Reaction in childhood." }],
+  "reaction": [{ "manifestation": [{ "text": "hives" }, { "text": "swelling" }], "severity": "severe" }],
+  "extension": [
+    { "url": "https://api.clinikehr.com/fhir/StructureDefinition/entry", "valueString": "structured" },
+    { "url": "https://api.clinikehr.com/fhir/StructureDefinition/review_status", "valueString": "confirmed" },
+    { "url": "https://api.clinikehr.com/fhir/StructureDefinition/source", "valueString": "clinic" }
+  ]
+}
+```
+
+What changed:
+
+| Plain JSON | FHIR |
+| --- | --- |
+| Wrapped in `data` | The bare resource, with a `resourceType` |
+| `snake_case` names (`clinical_status`) | `camelCase` names (`clinicalStatus`) |
+| `patient_id` is an id | `patient` is a reference: `Patient/<id>` |
+| `clinical_status: "active"` | A coded value: a `system` and a `code` |
+| `substance.code` with `system: "rxnorm"` | `code.coding` with the full RxNorm address as its `system`. `text` keeps the name as recorded |
+| `reactions[].manifestation` is a list of words | Each word is `{ "text": … }` |
+| `note` is text | `note` is a list of `{ "text": … }` |
+| `recorded_by`, `created_at` | `recorder` (a reference) and `recordedDate` |
+| Fields with no FHIR home, such as `entry`, `review_status`, `source` | `extension` entries, each named by a web address under `https://api.clinikehr.com/fhir/StructureDefinition/` |
+
+`meta.tag` marks which clinic the record belongs to. A field that is `null` in plain JSON is simply left out in FHIR.
+
+A list of the same allergies as FHIR is a `Bundle`. Here, with its resources shortened to `…`:
+
+```json
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "link": [
+    { "relation": "self", "url": "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/allergies?patient_id=PATIENT_ID" },
+    { "relation": "next", "url": "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/allergies?patient_id=PATIENT_ID&starting_after=…" }
+  ],
+  "entry": [
+    {
+      "fullUrl": "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/allergies/5b0c6f0e-1111-4a2b-9c3d-0123456789ab",
+      "resource": { "resourceType": "AllergyIntolerance", "…": "…" }
+    }
+  ]
+}
+```
+
+### Errors in FHIR
+
+Most errors are **the same `application/problem+json` described above**, even if you sent `Accept: application/fhir+json`:
+a missing or wrong key, a missing permission, a record not found, a rate limit. Branch on `code` as usual.
+
+The exception is a **refused FHIR request body**. If you send FHIR to write something and it is refused (not valid JSON,
+the wrong `resourceType`, an element that has nowhere to go, or FHIR sent to an endpoint that is read-only as FHIR), the
+answer is `400` with the content type `application/fhir+json` and an **`OperationOutcome`**: FHIR's own error resource.
+
+```json
+{
+  "resourceType": "OperationOutcome",
+  "issue": [
+    {
+      "severity": "error",
+      "code": "not-supported",
+      "diagnostics": "A FHIR AllergyIntolerance body is not accepted. Create and update an allergy with application/json; AllergyIntolerance is read as FHIR with Accept: application/fhir+json."
+    }
+  ]
+}
+```
+
+Read `issue[].severity` and `issue[].code` (FHIR's own words, such as `invalid`, `value`, `structure` or `not-supported`),
+and `diagnostics` for the explanation. See [Errors](/errors) for what the same refusals look like in plain JSON.
+
+### What FHIR does not do here
+
+- No `_include` or `_revinclude`, and no FHIR-standard search names. Searches use our own parameters, such as `patient_id`. They are listed on [FHIR R4](/fhir#search-parameters).
+- No separate `/fhir` address and no resource types beyond the list above.
+- No exact stock quantities. A medicine's availability is a coarse band, as in plain JSON.
+
+## Which should I use?
+
+| If you are… | Use |
+| --- | --- |
+| Building your own app or dashboard | Plain JSON. It is smaller and easier to read. |
+| Sending records to, or receiving them from, a system that requires FHIR | FHIR |
+| Writing a note, appointment or patient | Either. The record that results is identical. |
+| Not sure | Start with plain JSON. You can add the `Accept` header to the same call later. |
+
+## See also
+
+- [FHIR R4](/fhir): the full rules for reading, writing and importing
+- [Pagination](/pagination)
+- [Errors](/errors)
+- [Allergies](/allergies)

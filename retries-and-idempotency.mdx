@@ -7,7 +7,7 @@ icon: "/images/icons/arrows-repeat.svg"
 <Info>
   **Writes and the change feed described below are live** for inventory (any plan with API access);
   for patients, appointments, clinical notes and drug requests, a write also needs the clinic's API
-  add-on and an accepted API data agreement — see [the index page](/index#patient-records-appointments-clinical-notes-and-drug-requests).
+  add-on and an accepted API data agreement — see [the index page](/patient-data-access).
   Webhooks are set up from the developer dashboard's **Webhooks** page — see
   [Verifying a webhook's signature](/verifying-webhook-signatures).
 </Info>
@@ -41,7 +41,7 @@ route where a duplicate would be a real problem (money, stock).
 
 ## The sequence number — for webhooks
 
-Every webhook carries a `seq` — a number that only ever goes up, scoped to the connection that received it.
+Every webhook carries a `seq` — a number that only ever goes up, counted separately for each clinic (and, for an event about your workspace itself, for your workspace).
 Store the highest `seq` you've successfully processed. It's your one source of truth for "have I seen this
 already", independent of whether the delivery itself arrived once, twice, or out of order under retry.
 

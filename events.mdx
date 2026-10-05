@@ -1,0 +1,129 @@
+---
+title: "Events"
+description: "Read a clinic's change feed to catch up on what changed while your webhook endpoint was down, without losing or double-counting anything."
+icon: "/images/icons/arrows-repeat.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+An **event** is a short note saying that something changed at a clinic: an item's stock band moved from `in_stock` to
+`low`, a catalogue item was edited, a pharmacy's till stopped reporting. An event says **what** changed and **where**.
+It never carries the record itself. When you get one, you read the record to see the new state.
+
+There are two ways to receive events:
+
+- **Webhooks** push each event to an address you register. This is the normal way. See [Verifying a webhook's signature](/verifying-webhook-signatures) for how to trust a delivery, and **Webhooks** in the developer portal to add an address.
+- **The change feed** (this page) lets you ask for events yourself. Use it to **catch up** after your endpoint was down, or to check that you have not missed one.
+
+You do not need both, but most integrations use the feed as a safety net behind webhooks. The same catch-up idea
+is explained alongside duplicate handling in [Retries and duplicates](/retries-and-idempotency).
+
+<Availability keyKind={['clinic', 'organization']} plan="A plan with API access" note="No single permission is needed to call it. What you see depends on the permissions your key holds." />
+
+## Read the feed
+
+```
+GET /v1/clinics/{clinic_id}/events
+```
+
+| Query parameter | Meaning |
+| --- | --- |
+| `after_seq` | Return only events with a `seq` **greater than** this. A whole number, 0 or more. Default `0`, which starts at the oldest event still kept. |
+| `limit` | How many events to return. 1 to 200, default 50. A value outside that range is refused with `400`. |
+
+This route does **not** use the cursor paging described on [Pagination](/pagination). There is no `starting_after`, no
+`has_more` and no `next_cursor`. You page with `after_seq` and `next_after`, as shown below.
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/events?after_seq=42&limit=50" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "events": [
+    {
+      "id": "12345678-aaaa-4bbb-8ccc-123456789abc",
+      "type": "inventory.availability.changed",
+      "clinic_id": "11111111-2222-4333-8444-555555555555",
+      "subject_id": "99999999-aaaa-4bbb-8ccc-dddddddddddd",
+      "seq": 43,
+      "data": { "id": "99999999-aaaa-4bbb-8ccc-dddddddddddd", "band": "out", "previous_band": "low" },
+      "created_at": "2026-10-01T10:00:00Z"
+    }
+  ],
+  "next_after": 43
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `id` | A unique id for this event. |
+| `type` | What kind of change it was. See the list below. |
+| `clinic_id` | The clinic it happened at. |
+| `subject_id` | The id of the thing that changed: an item for item events, the clinic for a freshness event. |
+| `seq` | A number that only goes up, counted separately for each clinic. Events come back in `seq` order. |
+| `data` | A small object whose fields depend on `type`. Never a record, and never patient information. |
+| `created_at` | When the event was recorded. |
+| `next_after` | The `seq` of the last event in this page. If the page is empty, it is the `after_seq` you sent. |
+
+### Event types
+
+| `type` | `data` | Needs the permission |
+| --- | --- | --- |
+| `inventory.availability.changed` | `id` (the item), `band` (the new band), `previous_band` | `inventory.availability:read` |
+| `listing.freshness.changed` | `stale` (`true` or `false`), `since` (when it changed) | `inventory.availability:read` |
+| `inventory.item.created` | `id` (the item) | `inventory.items:read` |
+| `inventory.item.updated` | `id` (the item) | `inventory.items:read` |
+
+`listing.freshness.changed` means the clinic's till has stopped (or started again) reporting stock. It is sent once
+per clinic when that changes, not once per item. When it goes stale, bands for that clinic's items are `unknown` until
+the till reports again. See [Stock bands](/stock-bands#the-one-place-a-band-is-unknown-network-search).
+
+An `inventory.availability.changed` event is sent when an item's band changes, never for every unit sold.
+
+## Catching up
+
+Keep the highest `seq` you have processed. After an outage, ask for everything after it, and keep asking until
+`next_after` stops moving:
+
+```bash
+after_seq=42
+while :; do
+  page=$(curl -s "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/events?after_seq=$after_seq&limit=200" \
+    -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…")
+  count=$(echo "$page" | jq '.events | length')
+  # process each event in page's "events" here, in order
+  [ "$count" -gt 0 ] || break
+  after_seq=$(echo "$page" | jq -r '.next_after')
+done
+```
+
+Because the same event can reach you by webhook **and** through the feed, process each one **once**: remember the
+`seq` you last handled and skip anything at or below it. Handling an event twice should be harmless anyway, because
+every event only tells you to go and read the current state.
+
+## Things to know
+
+- **You only see event types your key may see.** An event appears only if your key **currently** holds the permission in the table above. If a permission is removed, events that needed it stop appearing, even ones recorded earlier.
+- **Events are kept for 30 days.** The feed is for catching up after a short outage, not a permanent history. If you were away longer, read the records themselves.
+- **A clinic only has events once someone is listening.** Events are recorded for a clinic while it has a webhook address registered, or an organization with a webhook address is connected to it. A clinic with neither has an empty feed, and the feed does not fill in changes from before a listener existed.
+- **Read the record, not the event.** `data` is deliberately small. Use `subject_id` to fetch the item (see [Inventory](/inventory)) and get its current state.
+- **Reading the feed counts as a request**, like any other read. It uses your per-minute limit and, for an organization, your monthly allowance. Deliveries to your webhook address are not counted. See [Rate limits](/rate-limits) and [Usage and billing](/usage-and-billing).
+- **Errors.** A clinic your key cannot reach returns `404` with `code: "not_found"`. A bad `after_seq` or `limit` returns `400` with `code: "invalid_request"`. A test key asking for a real clinic returns `403` with `code: "sandbox_only"`. See [Errors](/errors).
+
+## Recipes
+
+**Keep an availability cache fresh.** Register a webhook address for `inventory.availability.changed`. On each
+event, read the item and update your copy. Once an hour, and after any outage, call the feed with your last `seq` to
+catch anything a delivery missed.
+
+**Notice a pharmacy going quiet.** Watch for `listing.freshness.changed` with `"stale": true`. Show that pharmacy's
+availability as unknown until you see the same event with `"stale": false`.
+
+## See also
+
+- [Verifying a webhook's signature](/verifying-webhook-signatures)
+- [Retries and duplicates](/retries-and-idempotency)
+- [Pharmacy listings](/pharmacy-listings)
+- [Permissions](/permissions)

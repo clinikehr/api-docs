@@ -4,6 +4,17 @@ description: "Content-negotiated FHIR R4 for patients, appointments, notes and m
 icon: "/images/icons/code.svg"
 ---
 
+## New to FHIR?
+
+**FHIR** (say "fire") is an international standard for how health records are shaped when two systems exchange them.
+A record in FHIR is a JSON object called a **resource**: a `Patient`, an `Appointment`, an `AllergyIntolerance`. A list of
+them comes back wrapped in a **Bundle**. You ask for FHIR with a single header, `Accept: application/fhir+json`, and
+you get the same record you would get from the plain JSON answer, in a different shape.
+
+If you are building your own app, you probably do not need FHIR: the plain JSON answer is simpler. Use FHIR when the
+system on the other end already expects it. For a beginner's walk through both formats, with the same allergy shown
+side by side, read [Response formats: JSON and FHIR](/json-and-fhir). The rest of this page is the full reference.
+
 FHIR is a **representation**, not a second API. Every resource below is the SAME record, on the
 SAME endpoint, with the SAME scope, entitlement, clinic scoping and audit trail as our plain JSON
 — only the shape on the wire changes, selected by a standard header.
@@ -62,9 +73,10 @@ the record back as FHIR, `GET` it with `Accept: application/fhir+json`.
 **An element that would change a record's meaning without anywhere for it to go is refused, not
 silently dropped.** On `Patient`: `gender: "unknown"`, `deceasedBoolean`/`deceasedDateTime`,
 `multipleBirthBoolean`/`multipleBirthInteger`, and `Patient.link` (merging two records is a
-staff-reviewed decision, never something an API write can assert). A refusal on a FHIR request
-comes back as an `OperationOutcome`, not our usual error shape — see [Errors](/errors) for how the
-same underlying error code appears in both.
+staff-reviewed decision, never something an API write can assert). A FHIR body that is refused
+as invalid comes back as a `400` `OperationOutcome`. Every other refusal (a missing or wrong key, a
+missing permission, not found, a rate limit) keeps the usual `application/problem+json` shape, even on
+a FHIR request — see [Errors](/errors).
 
 ## Automatic acceptance
 
@@ -82,7 +94,7 @@ it reads `confirmed`. It is never presented as clinician-confirmed before then. 
 - No general `/fhir` passthrough, and no arbitrary FHIR resource type.
 - Coverage and payer `Organization` are read-only in FHIR: a FHIR body on `POST` or `PATCH` is refused with an `OperationOutcome`, so add or change a coverage in the plain JSON shape. See [Insurance](/insurance).
 - **Practitioner is read-only.** The provider directory cannot be written by any request, in any shape. See [Providers](/providers). `PractitionerRole` is not available yet: a clinician's role and specialties are carried on the `Practitioner`.
-- **Outside care providers have no FHIR shape.** They are JSON only, and a FHIR body or `Accept: application/fhir+json` on those routes is refused. See [Outside care providers](/care-providers).
+- **Outside care providers have no FHIR shape.** They are JSON only: a FHIR body on those routes is refused, and `Accept: application/fhir+json` is answered in plain JSON. See [Outside care providers](/care-providers).
 - No `Location`, `Slot`, `Schedule`, or `HealthcareService`
   create/update through FHIR — read/write for those stays on their own plain endpoints as they
   ship.

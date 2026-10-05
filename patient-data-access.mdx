@@ -1,0 +1,41 @@
+---
+title: "Getting access to patient data"
+description: "What a key needs before it can read or send patient records, appointments, notes and other patient information."
+icon: "/images/icons/shield-check.svg"
+---
+
+Most of the API deals with **patient information**: patient records, appointments, clinical notes, allergies, medicines, referrals, insurance coverage and drug requests. Because this is protected health information, a key needs more than the right permission before it can reach it. This page lists exactly what is needed.
+
+<Tip>
+  **Just exploring?** You don't need any of this to start. A **test** key reaches a sandbox of invented patients, so you can build and try these routes first. See [Try them in the sandbox first](#try-them-in-the-sandbox-first) below.
+</Tip>
+
+## What a live key needs
+
+These routes are live, but reaching them needs more than a key. Every one of them carries a
+patient-data permission, and a key can only be given one once:
+
+- your clinic's own key: the clinic's plan is Team (or Business, on the Pharmacy and Diagnostics
+  editions) or Enterprise, the clinic has bought the [API add-on](https://help.clinikehr.com/platform/settings/api-access#the-api-add-on-reach-your-own-patient-records)
+  (or is on an Enterprise contract, which includes it) **and** the clinic owner has accepted the
+  current API data agreement;
+- an organization's key: your workspace is on a paid plan whose contract with us includes patient
+  data, your organization has been **approved for patient data** (an application on **Settings →
+  Verification**, decided by a reviewer, covering the kinds of data you are approved for), you have
+  accepted the current data-protection addendum, and the clinic you're connecting to has approved that
+  scope for your connection.
+
+CRM contacts and activities are reached the same way. Their routes exist, under
+`/v1/clinics/{clinic_id}/crm/`, and their permissions are patient-data permissions, so the add-on, the
+agreement and (for an organization) the approval above all apply. Pipelines and stages are reference data
+with no patient in them.
+
+Until both conditions hold, a request for one of these scopes is refused the same way a missing key
+would be — see [Permissions](/permissions) for the exact scopes (`patients:read`/`write`,
+`appointments:read`/`write`, `notes:read`/`write`) and [Drug requests](/drug-requests) for that
+family's own page.
+
+## Try them in the sandbox first
+
+A **test** key can hold the patient-data permissions. It reaches only your workspace's own sandbox, which holds invented patients, notes and appointments (all named "SANDBOX"), so you can build against these routes today without a patient-data agreement. Nothing real is ever involved, and a test key can never reach a real clinic. The permissions in the paragraph above apply to a **live** key.
+

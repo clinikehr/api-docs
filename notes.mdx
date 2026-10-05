@@ -1,0 +1,425 @@
+---
+title: "Clinical notes"
+description: "Read a patient's notes, find templates and clinicians, and create a draft note for a clinician to finish. Nothing can sign or finalise."
+icon: "/images/icons/file-signature.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+A **clinical note** is what a clinician writes about a patient: a consultation, a progress note, a clerkship. Each note
+belongs to one patient and has a **status**: it starts as a `draft`, and a clinician later signs or finalises it. The text
+of a note is its **content**.
+
+With these endpoints you can:
+
+- list a patient's notes (a short summary of each, never the text) and read one note in full;
+- discover which **templates** a clinic uses and which **clinicians** may hold a note;
+- create a **draft** note for a named clinician, and correct that draft until a person touches it.
+
+**A request can only ever create or edit a draft.** Nothing you send can sign, lock, finalise or co-sign a note: those are
+a clinician's decisions, made in the clinic's own screens.
+
+<Availability keyKind={['clinic', 'organization']} plan="Enterprise subscription for the clinic" scopes="notes:read · notes:write" note="Notes are patient information. A test key reaches only your sandbox." />
+
+## Who can use it
+
+| You want to | Permission |
+| --- | --- |
+| List notes, read a note, list templates, read a template, list clinicians | `notes:read` |
+| Create a draft, update a draft | `notes:write` |
+
+These are **patient-data permissions**, so a live key needs more than the permission itself: the clinic's API add-on, the
+accepted data agreement (or, for an organization, patient-data approval for the **Clinical notes** kind and a connection the
+clinic has approved). The notes permissions are available to clinics on an Enterprise subscription. Read
+[Patient information access](/patient-data-access) for the full checklist and [Permissions](/permissions) for the scope
+list. If a requirement is missing you get a `403` whose `code` tells you which one, see [Errors](/errors).
+
+**Try it in the sandbox first.** A **test** key reaches only your workspace's sandbox, which holds invented patients and
+notes, so you can try every request on this page without an agreement and without touching a real chart. See
+[Authentication](/authentication).
+
+| Operation | Endpoint |
+| --- | --- |
+| [List a patient's notes](#list-a-patients-notes) | `GET /v1/clinics/{clinic_id}/notes?patient_id=…` |
+| [Read one note](#read-one-note) | `GET /v1/clinics/{clinic_id}/notes/{note_id}` |
+| [Create a draft note](#create-a-draft-note) | `POST /v1/clinics/{clinic_id}/notes` |
+| [Update a draft note](#update-a-draft-note) | `PATCH /v1/clinics/{clinic_id}/notes/{note_id}` |
+| [List note templates](#list-note-templates) | `GET /v1/clinics/{clinic_id}/note-templates` |
+| [Read one template's fields](#read-one-templates-fields) | `GET /v1/clinics/{clinic_id}/note-templates/{template_key}` |
+| [List clinicians who may hold a note](#list-clinicians-who-may-hold-a-note) | `GET /v1/clinics/{clinic_id}/note-clinicians` |
+
+Every example uses a test key and a placeholder clinic. Replace `YOUR_CLINIC_ID` and the ids with your own.
+
+## What a note looks like
+
+A note summary (a list item) carries these fields. A single note adds `custom_template_id`, `content` and `citations`.
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The note's id. It is also the id of the matching visit in [Encounters](/encounters). |
+| `patient_id` | The patient the note is about. |
+| `title` | The note's title, for example `Medical clerkship (draft via API)`. |
+| `note_type` | The template the note was written from, or `blank_note` for a note with no template. |
+| `status` | `draft`, `locked`, `final` or `completed`. |
+| `is_signed` / `signed_at` | Whether a clinician has signed it, and when. |
+| `origin` | Where it came from: `staff` (written by the clinic), `assistant_internal`, `assistant_external` (a draft from an outside assistant that gave its name), or `api`. |
+| `origin_assistant_name` | The name an outside assistant gave when it sent the draft, or `null`. |
+| `is_reviewed` / `reviewed_at` | Whether a clinician has reviewed it, and when. |
+| `created_at` / `updated_at` | Timestamps. |
+| `custom_template_id` | Single note only. The clinic's own template id, or `null`. |
+| `content` | Single note only. The note's text, as an object. Its shape depends on the template. |
+| `citations` | Single note only. The sources an outside assistant gave, or `null`. |
+
+## List a patient's notes
+
+Returns a short summary of each of one patient's notes. **It never returns the text.** Read one note to get its text.
+
+`GET /v1/clinics/{clinic_id}/notes`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+| `patient_id` | query, uuid | Yes | The patient whose notes you want. |
+| `limit` | query, integer 1 to 100 | No | Page size. Default 25. |
+| `starting_after` | query, string | No | The `next_cursor` from the previous page. See [Pagination](/pagination). |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/notes?patient_id=PATIENT_ID&limit=25" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "3f9d1c52-1111-4a2b-9c3d-0123456789ab",
+      "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+      "title": "Medical clerkship (draft via API)",
+      "note_type": "Medical clerkship",
+      "status": "draft",
+      "is_signed": false,
+      "signed_at": null,
+      "origin": "api",
+      "origin_assistant_name": null,
+      "is_reviewed": false,
+      "reviewed_at": null,
+      "created_at": "2026-10-05T09:00:00Z",
+      "updated_at": "2026-10-05T09:00:00Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+A patient the clinic has restricted is answered with `404 not_found`, the same as a patient that does not exist. A note the
+clinic has marked **sensitive** is never listed.
+
+## Read one note
+
+Returns one note, including its text.
+
+`GET /v1/clinics/{clinic_id}/notes/{note_id}`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+| `note_id` | path, uuid | Yes | The note. |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/notes/NOTE_ID" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": {
+    "id": "3f9d1c52-1111-4a2b-9c3d-0123456789ab",
+    "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+    "title": "Medical clerkship (draft via API)",
+    "note_type": "Medical clerkship",
+    "status": "draft",
+    "is_signed": false,
+    "signed_at": null,
+    "origin": "api",
+    "origin_assistant_name": null,
+    "is_reviewed": false,
+    "reviewed_at": null,
+    "created_at": "2026-10-05T09:00:00Z",
+    "updated_at": "2026-10-05T09:00:00Z",
+    "custom_template_id": null,
+    "content": {
+      "presentingComplaint": "Example patient reports a mild cough for three days."
+    },
+    "citations": null
+  }
+}
+```
+
+`content` is returned as the clinic stored it, minus anything internal. Its keys depend on the template the note was
+written from, so read the template (below) rather than guessing. A note in another clinic, a restricted patient's note and
+a sensitive note all answer `404 not_found`; you cannot tell them apart from a note that does not exist.
+
+## Create a draft note
+
+Creates a note for one patient, **for a named clinician**, with `status: "draft"`. The note appears in the clinic's notes,
+marked as coming from your app, and the clinician reviews and completes it.
+
+`POST /v1/clinics/{clinic_id}/notes`
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `patient_id` | uuid | Yes | The patient the note is about. |
+| `clinician_id` | uuid | Yes | The clinician the draft is **for**: an id from [the clinicians list](#list-clinicians-who-may-hold-a-note). It is not you, the caller. |
+| `content` | object | Yes | The note's text. See below. |
+| `note_type` | string | No | The exact name of one of the clinic's standard templates, taken from the templates list. Omit for a blank note. |
+| `custom_template_id` | uuid | No | The id of one of the clinic's own templates. Use this **or** `note_type`, not both. |
+| `origin_assistant_name` | string | No | The name of your system, when the draft is written by an assistant. The note is then marked as coming from an outside assistant, with this name. |
+| `citations` | array of objects | No | Sources behind an assistant's draft. Stored beside the note, not inside its text. |
+
+A field not on this list is refused with `invalid_request`. In particular there is no field for a status, a signature or a
+lock.
+
+**What goes in `content`:**
+
+- For a **template** note (`note_type` or `custom_template_id`), `content` is keyed by the template's field ids. Read the
+  template's fields first. A key the template does not have is refused with `unknown_field`.
+- For a **blank** note, `content` is free-form, for example `{ "text": "Patient reports a mild cough." }`. A blank note
+  cannot carry treatment, service or diagnosis blocks. Keys named `diagnosisData`, `treatment_plans`, `follow_up_plans`,
+  `services` or `diagnoses`, and any key beginning with an underscore, are refused with `unknown_field`. This keeps a draft
+  free of anything that would order, prescribe or bill. Matching [Encounters](/encounters).
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/notes" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "patient_id": "PATIENT_ID",
+        "clinician_id": "CLINICIAN_ID",
+        "content": { "text": "Example patient reports a mild cough for three days." }
+      }'
+```
+
+```json
+{
+  "data": {
+    "id": "3f9d1c52-1111-4a2b-9c3d-0123456789ab",
+    "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+    "title": "blank_note (draft via API)",
+    "note_type": "blank_note",
+    "status": "draft",
+    "is_signed": false,
+    "signed_at": null,
+    "origin": "api",
+    "origin_assistant_name": null,
+    "is_reviewed": false,
+    "reviewed_at": null,
+    "created_at": "2026-10-05T09:00:00Z",
+    "updated_at": "2026-10-05T09:00:00Z",
+    "custom_template_id": null,
+    "content": null,
+    "citations": null
+  }
+}
+```
+
+The answer to a create or an update shows the note's details with `content: null`. **Read the note** to see its content.
+
+`Idempotency-Key` is optional on this route but strongly recommended: a retry with the same key and the same body returns
+the original result instead of a second draft. See [Retries and duplicates](/retries-and-idempotency).
+
+## Update a draft note
+
+Replaces the content of a draft that **your own key created**, as long as no clinician has touched it since.
+
+`PATCH /v1/clinics/{clinic_id}/notes/{note_id}`
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+| `note_id` | path, uuid | Yes | The draft to change. |
+| `content` | object | Yes | The **whole** new content. It replaces the old content; it is not merged. |
+
+```bash
+curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/notes/NOTE_ID" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "content": { "text": "Example patient reports a mild cough for three days. No fever." } }'
+```
+
+The answer has the same shape as a create. The update is refused in these cases:
+
+| Case | Answer |
+| --- | --- |
+| The note is signed, locked or finalised | `409 note_not_editable` |
+| A clinician has saved the draft since your key last wrote it | `409 note_not_editable` |
+| The note was not created by this key, or is another clinic's, or the patient is restricted | `404 not_found` |
+| The content is not an object, or has a key that is refused | `400 invalid_request` or `400 unknown_field` |
+
+Once a clinician has edited a draft it is theirs. Read the note again to see what the clinic recorded rather than trying to
+overwrite it. There is no `Idempotency-Key` on this route, because replacing a draft's content with the same content is
+already safe to repeat.
+
+## List note templates
+
+Lists every standard template plus the clinic's own active templates. Use it to find what to send as `note_type` or
+`custom_template_id`.
+
+`GET /v1/clinics/{clinic_id}/note-templates`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/note-templates" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "key": "Medical clerkship",
+      "title": "Medical clerkship",
+      "category": "General",
+      "description": "A full history and examination.",
+      "kind": "static",
+      "version": 1
+    },
+    {
+      "key": "5c1b2a3d-4444-4e5f-8a6b-23456789abcd",
+      "title": "Example follow-up",
+      "category": null,
+      "description": null,
+      "kind": "custom_template",
+      "version": 1
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `key` | Exactly what to send. For `kind: "static"` it is the `note_type` (a name). For `kind: "custom_template"` it is the `custom_template_id` (a uuid). |
+| `kind` | `static` for a standard template, `custom_template` for one the clinic made. |
+| `title`, `category`, `description`, `version` | Descriptive. Any may be `null`. |
+
+## Read one template's fields
+
+Returns the fields of one template: the exact keys to use in `content`, in order, with their type and options.
+
+`GET /v1/clinics/{clinic_id}/note-templates/{template_key}`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+| `template_key` | path, string | Yes | A standard template's exact name (URL-encode spaces, for example `Medical%20clerkship`) or the id of one of the clinic's own templates. |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/note-templates/Medical%20clerkship" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "presentingComplaint",
+      "order": 0,
+      "title": "Presenting complaint",
+      "type": "text",
+      "required": false,
+      "options": null
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The exact key to use in `content`. |
+| `order` | Position in the template. |
+| `title`, `type` | What the field is called and what kind of answer it takes. |
+| `required` | Whether the template marks it required. |
+| `options` | The choices for a choice field, or `null`. |
+
+A template that does not exist, or belongs to another clinic, answers `404 not_found`.
+
+## List clinicians who may hold a note
+
+Lists the clinic's staff whose role may hold a note. Use it to find a valid `clinician_id`.
+
+`GET /v1/clinics/{clinic_id}/note-clinicians`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The clinic. |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/note-clinicians" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+      "display_name": "Dr Ada Example",
+      "role": "doctor",
+      "active": true
+    }
+  ]
+}
+```
+
+You get an id, a display name, a role and whether the person is active. Never an email address, a phone number or a licence
+number.
+
+## Things to know
+
+**Refusals you may see**
+
+| Code | Status | Means |
+| --- | --- | --- |
+| `invalid_request` | `400` | A required field is missing or malformed (`patient_id`, `clinician_id`, `content`), a field is not recognised, or `clinician_id` is not a member of this clinic or has a role that may not hold a note. |
+| `unknown_field` | `400` | `content` has a key the template does not have (or a refused key in a blank note). The answer names the keys it refused as `unknown_keys` and lists the keys that are valid as `valid_keys`. |
+| `template_not_found` | `400` | `note_type` or `custom_template_id` is not a template this clinic has. |
+| `not_found` | `404` | The patient, note or template does not exist, or you may not see it. The two are never told apart. |
+| `note_not_editable` | `409` | The draft has been signed, locked or finalised, or a clinician has saved it since your key last wrote it. |
+| `idempotency_key_conflict` | `409` | The `Idempotency-Key` was already used for a different request. |
+| `idempotency_key_reused` | `409` | A request with this key is still being processed. Wait and retry. |
+
+See [Errors](/errors) for the shape of every error and the permission-related codes.
+
+**What is never returned.** A note the clinic marked sensitive is never listed and answers `404` when read. A restricted
+patient's notes are never reachable. Notes you did not create are readable with `notes:read`, but you can only change a
+draft your own key created.
+
+**Pagination.** Only the notes list is paginated, with `limit` and `starting_after`. See [Pagination](/pagination).
+
+**FHIR.** Send `Accept: application/fhir+json` on the notes list or a single note to receive a `Bundle` of
+`DocumentReference` or a bare `DocumentReference`. You can also create a draft by `POST`ing a FHIR `DocumentReference`
+with `Content-Type: application/fhir+json`: the `subject` is the patient, the `author` is the clinician, and a
+`docStatus` other than `preliminary` is refused. The text lands in a single `Note` field of the content. Updating a note
+and the template and clinician routes are JSON only. See [FHIR R4](/fhir).
+
+**One id for the note and its visit.** The note's `id` is the same as its visit's id in [Encounters](/encounters).
+Encounters never return clinical text; this page does.
+
+## Common tasks
+
+**Draft a note for a clinician to finish**
+
+1. `GET …/note-clinicians` and choose a `clinician_id`.
+2. `GET …/note-templates`, then `GET …/note-templates/{key}` to learn the field ids (skip both for a blank note).
+3. `POST …/notes` with `patient_id`, `clinician_id`, `content` and an `Idempotency-Key`.
+4. The clinician finds the draft marked as coming from your app, reviews it and completes it.
+
+**Fix a typo in a draft you just created.** `PATCH …/notes/{note_id}` with the whole corrected `content`. If it answers
+`409 note_not_editable`, a clinician has already taken the draft over: read it and leave it alone.
+
+**Show a patient's notes in your app.** `GET …/notes?patient_id=…` for the summaries, following `next_cursor`, then
+`GET …/notes/{note_id}` for the one the user opens.

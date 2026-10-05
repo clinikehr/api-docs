@@ -53,9 +53,34 @@ Every error response is `application/problem+json` — a small, consistent JSON 
 | `care_provider_clinic_managed` | `409` | You tried to change or remove an outside care provider your app did not add. Only the clinic can change it. The contact stays readable, and its `editable` field is `false`. See [Outside care providers](/care-providers#you-change-only-what-your-app-added). |
 | `note_not_editable` | `409` | You tried to change a visit (or a note) that your app can no longer change: a clinician has edited the draft since your app opened it, or has signed or finalised it. Read it again to see what the clinic recorded. See [Encounters](/encounters#change-a-visits-details). |
 | `agreement_required` | `403` | The data-protection addendum (for an organization's key) or the API data agreement (for a clinic's own key) has not been accepted in its current version. |
+| `addon_required` | `403` | A clinic's own key asked for patient data, but the clinic has not added the API add-on. The clinic adds it under **Settings → API access**. See [Getting access to patient data](/patient-data-access). |
+| `legal_basis_required` | `403` | The clinic's connection to your organization has no recorded legal basis for sharing patient data, so patient data cannot flow on it yet. See [Connections](/connections). |
+| `patient_cap_reached` | `403` | The clinic's plan has reached its limit of patients, so a new patient cannot be created. |
+| `notification_settings_not_writable` | `403` | You tried to change a patient's own notification consent, which an API key can never change. See [Patients](/patients). |
+| `controlled_drug_not_api_movable` | `403` | A controlled drug cannot be moved through the API, because the movement needs a witness. Staff record it in ClinikEHR. See [Inventory](/inventory). |
+| `unknown_field` | `400` | The body named a field the schema (or, for a note, the template) does not have. The answer names the unknown fields and, for a note, the valid ones. See [Notes](/notes). |
+| `template_not_found` | `400` | The `note_type` or `custom_template_id` is not a template this clinic has. See [Notes](/notes). |
+| `too_many_rows` | `400` | An import held more than 100 rows. Split it and import it in parts. See [Patients](/patients). |
+| `limit_exceeded` | `400` | A stock change is larger than the limit the clinic has set for one change. See [Inventory](/inventory). |
+| `expiry_required` | `400` | Received stock needs an expiry date. See [Inventory](/inventory). |
+| `expiry_mismatch` | `400` | That lot already exists with a different expiry date, which a top-up cannot change. See [Inventory](/inventory). |
+| `hazard_location_required` | `400` | This item can only be moved to a location rated for it. See [Inventory](/inventory). |
+| `idempotency_key_conflict` | `409` | You reused an `Idempotency-Key` for a different request. Use a new key for a new request. See [Retries and idempotency](/retries-and-idempotency). |
+| `idempotency_key_reused` | `409` | A request with this `Idempotency-Key` is still being processed. Wait, then retry with the same key to get its answer. See [Retries and idempotency](/retries-and-idempotency). |
+| `slot_taken` | `409` | The clinician already has an appointment that overlaps this time. Pick another slot. See [Appointments](/appointments). |
+| `no_provider_available` | `409` | No clinician who offers this service is free at that time. See [Appointments](/appointments). |
+| `out_of_office` | `409` | The clinician's calendar is blocked at that time. See [Appointments](/appointments). |
+| `invalid_status_transition` | `409` | The record cannot move to that status from the one it is in now. |
+| `item_has_stock` | `409` | An item that still has stock cannot be archived. See [Inventory](/inventory). |
+| `insufficient_stock` | `409` | There is not enough usable stock for this movement. See [Inventory](/inventory). |
+| `expired_stock_not_transferable` | `409` | Only usable stock can be transferred; the expired part must be written off by the clinic instead. See [Inventory](/inventory). |
+| `batch_rejected` | `409` | An external stock batch was rejected and nothing from it was saved. See [Inventory](/inventory). |
+| `already_imported` | `409` | A file with exactly this content was already imported for this clinic. See [Patients](/patients). |
+| `file_expired` | `410` | The uploaded import file is no longer held. Upload it again to start a new import. See [Patients](/patients). |
+| `payload_too_large` | `413` | The import body is larger than 10 MiB. See [Patients](/patients). |
 
 <Note>
-  This list covers every resource live today. As new resources ship (patients, notes, appointments, inventory writes, drug requests — see the [overview](/index#what-isnt-available-yet)), they will add their own codes without changing what any code above means — see [Versioning](/versioning).
+  This list covers every code the API returns. Branch on `code`; a new code can be added inside `v1` (see [Versioning](/versioning)), so handle an unfamiliar one by its HTTP status.
 </Note>
 
 <Warning>

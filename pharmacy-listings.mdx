@@ -1,0 +1,283 @@
+---
+title: "Pharmacy listings"
+description: "Find listed pharmacies, check whether one has a medicine, and read its listing. Availability is a band, never an exact count."
+icon: "/images/icons/prescription-bottle-medical.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+A **listing** is the public face a pharmacy chooses to show: its name, address, opening hours, a pin on the map, and a
+rough answer to "do you have this medicine?". Think of a "find a pharmacy near me" feature in a patient app, or a
+purchasing tool that wants to know where a medicine can be found today.
+
+Nothing here is patient information, and nothing here exposes an exact stock number. A pharmacy's availability is a
+**band** (`out`, `low`, `in_stock` or `unknown`), always with the time it was true. See
+[Stock bands](/stock-bands) for what each one means.
+
+<Availability keyKind={['organization', 'clinic']} plan="A plan with API access" scopes="listing.profile:read · listing.availability:read" note="Searching the network needs an organization key. A test key reaches only your sandbox's own fictional pharmacies." />
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List the pharmacies you can reach | `GET /v1/listings/pharmacies` | `listing.profile:read` |
+| Search for a medicine across those pharmacies | `POST /v1/listings/search` | `listing.availability:read` |
+| Tell us whether a search result was right | `POST /v1/listings/feedback` | `listing.availability:read` |
+| List one pharmacy's items and their bands | `GET /v1/clinics/{clinic_id}/listing/items` | `listing.availability:read` |
+| Read one pharmacy's listing profile | `GET /v1/clinics/{clinic_id}/listing/profile` | `listing.profile:read` |
+
+## Which pharmacies can you see?
+
+You never see "all pharmacies". You see the pharmacies that have **chosen to be listed** and have **agreed to a
+connection** with your organization that includes the permission you are using. How a connection is made, and what a
+pharmacy can grant, is on [Connections](/connections#network-search). In short:
+
+- A **live organization key** sees the pharmacies connected to it.
+- A **test key** sees your workspace's own seeded, fictional pharmacies, so you can build before any real pharmacy has connected.
+- A **clinic's own key** gets an **empty result** from the network routes (`/v1/listings/pharmacies` and `/v1/listings/search`). A clinic reads its own data, not a network of other clinics.
+- A pharmacy that is not listed, or an item it has excluded from its listing, **never appears**. There is no way to ask for it.
+
+Two things appear in several responses, so learn them once:
+
+- **`band`** is `out`, `low`, `in_stock` or `unknown`. `unknown` means the pharmacy's own till has not reported recently enough to trust, so we say so rather than show a stale answer. Show it as its own state, never as `out`. See [Stock bands](/stock-bands#the-one-place-a-band-is-unknown-network-search).
+- **`as_of`** is when that band was last known to be true. Show it. A band without its age looks fresher than it is.
+
+## List listed pharmacies
+
+```
+GET /v1/listings/pharmacies
+```
+
+Requires `listing.profile:read`. Returns each pharmacy's profile (no stock), a page at a time.
+
+| Query parameter | Meaning |
+| --- | --- |
+| `limit` | How many to return. Default 25, maximum 100. |
+| `starting_after` | The `next_cursor` from the previous page. See [Pagination](/pagination). |
+
+```bash
+curl "https://api.clinikehr.com/v1/listings/pharmacies?limit=25" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "clinic_id": "11111111-2222-4333-8444-555555555555",
+      "display_name": "Example Pharmacy One",
+      "address_line1": "1 Example Close",
+      "address_line2": null,
+      "city": "Exampleville",
+      "region": "Example Region",
+      "country": "NG",
+      "postal_code": "000000",
+      "pin": { "lat": 6.51, "lng": 3.31 },
+      "phone": "+2340000000000",
+      "hours": {
+        "monday": { "open": "09:00", "close": "18:00", "is_closed": false }
+      },
+      "open_now": true
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `clinic_id` | The pharmacy's id. Use it in the two per-pharmacy routes below. Only `clinic_id` is always present. |
+| `display_name`, `address_line1`, `address_line2`, `city`, `region`, `country`, `postal_code`, `phone` | What the pharmacy entered. Any of them can be `null`. |
+| `pin` | `{ "lat", "lng" }`, a point the pharmacy placed on a map, or `null` if it has not placed one. Without a pin a pharmacy cannot be ranked by distance. |
+| `hours` | The pharmacy's opening hours, in the shape the pharmacy recorded them: one entry per day with `open`, `close` and `is_closed`. `null` when none are recorded. |
+| `open_now` | `true` or `false` from the pharmacy's own hours, or `null` when its hours are missing or unreadable for today. It is never a guess. |
+
+## Search for a medicine
+
+```
+POST /v1/listings/search
+```
+
+Requires `listing.availability:read`. One request searches **only** the pharmacies you can reach. Results are capped
+at 50 and are **not paginated**: narrow the search instead.
+
+| Body field | Notes |
+| --- | --- |
+| `item` | **Required.** Exactly one of: an identifier you already hold, `{ "system": "gtin", "value": "…" }`, or a name, `{ "q": "Paracetamol" }`. `system` is `gtin`, `nafdac`, `ndc`, `rxcui` or `partner`. |
+| `near` | Optional. `{ "lat": 6.5244, "lng": 3.3792, "radius_km": 20 }`. Ranks the results by distance from that point, nearest first. |
+| `limit` | Optional. 1 to 50, default 25. A value above 50 is refused with `400`, not quietly reduced. |
+
+Any other field in the body is refused with `400` and the field's name.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/listings/search" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "item": { "q": "Paracetamol" },
+        "near": { "lat": 6.5244, "lng": 3.3792, "radius_km": 20 },
+        "limit": 25
+      }'
+```
+
+```json
+{
+  "data": [
+    {
+      "clinic_id": "11111111-2222-4333-8444-555555555555",
+      "display_name": "Example Pharmacy One",
+      "item_id": "99999999-aaaa-4bbb-8ccc-dddddddddddd",
+      "match": "text",
+      "band": "in_stock",
+      "distance_km": 1.2,
+      "as_of": "2026-10-01T10:00:00Z"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `clinic_id`, `display_name` | The pharmacy that has a matching item. |
+| `item_id` | That pharmacy's own id for the item. |
+| `match` | `code` when the item matched an identifier you sent. `text` when it matched on the name. **A text match is not a promise that two products are the same.** Check before you tell a patient. |
+| `band` | `out`, `low`, `in_stock` or `unknown`. |
+| `distance_km` | Distance from your `near` point, or `null` when you gave no `near` or the pharmacy has no pin. |
+| `as_of` | When the band was last known to be true. |
+
+- With `near`, nearest pharmacies come first. A pharmacy with no pin is **not removed** by `radius_km`: it has `distance_km: null` and comes last.
+- A test key matches identifiers `gtin` and `nafdac`, and names (`q`). `ndc`, `rxcui` and `partner` identifiers find nothing in the sandbox and return an empty `data` list.
+
+## Tell us whether a result was right
+
+```
+POST /v1/listings/feedback
+```
+
+Requires `listing.availability:read`. After you (or your user) find out whether a search result was true, report it. The
+report holds **no user data**: only the item you searched for, optionally the pharmacy, and the outcome.
+
+| Body field | Notes |
+| --- | --- |
+| `item` | **Required.** The same `{ "system", "value" }` or `{ "q" }` you searched with. |
+| `outcome` | **Required.** `confirmed_available`, `confirmed_unavailable`, `wrong_match` or `stale`. |
+| `clinic_id` | Optional. The pharmacy the report is about. |
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/listings/feedback" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "item": { "q": "Paracetamol" },
+        "clinic_id": "11111111-2222-4333-8444-555555555555",
+        "outcome": "confirmed_available"
+      }'
+```
+
+```json
+{ "data": { "id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" } }
+```
+
+`id` is the id of your report. With a **test key** the request is checked and answered with an id, but nothing is stored,
+because a sandbox pharmacy is not a real one. An unknown `outcome`, or a missing `item`, is refused with `400`.
+
+## One pharmacy's items
+
+```
+GET /v1/clinics/{clinic_id}/listing/items
+```
+
+Requires `listing.availability:read`. Use this when you already hold a connection to the pharmacy and want all of its
+listed items with their bands, for example to fill a local cache. It goes through the same per-clinic checks as
+[Inventory](/inventory). Only items the pharmacy has chosen to list appear.
+
+| Query parameter | Meaning |
+| --- | --- |
+| `updated_since` | RFC 3339 timestamp. Only items changed since then. |
+| `limit` | Default 25, maximum 100. |
+| `starting_after` | The `next_cursor` from the previous page. See [Pagination](/pagination). |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/listing/items?limit=25" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "item_id": "99999999-aaaa-4bbb-8ccc-dddddddddddd",
+      "name": "Example Paracetamol 500 mg Tablets",
+      "band": "in_stock",
+      "as_of": "2026-10-01T10:00:00Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+A test key reaches only your sandbox's own pharmacy: the `clinic_id` that [`GET /v1/me`](/authentication) reports.
+
+## One pharmacy's profile
+
+```
+GET /v1/clinics/{clinic_id}/listing/profile
+```
+
+Requires `listing.profile:read`. The same profile fields as the pharmacy list, for one pharmacy. **The response is the
+profile itself, with no `data` wrapper.**
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/listing/profile" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "clinic_id": "11111111-2222-4333-8444-555555555555",
+  "display_name": "Example Pharmacy One",
+  "address_line1": "1 Example Close",
+  "address_line2": null,
+  "city": "Exampleville",
+  "region": "Example Region",
+  "country": "NG",
+  "postal_code": "000000",
+  "pin": { "lat": 6.51, "lng": 3.31 },
+  "phone": "+2340000000000",
+  "hours": {
+    "monday": { "open": "09:00", "close": "18:00", "is_closed": false }
+  },
+  "price_opt_in": false,
+  "profile_completed_at": "2026-10-01T10:00:00Z",
+  "updated_at": "2026-10-01T10:00:00Z"
+}
+```
+
+It has the fields in the table above, except `open_now`, plus:
+
+| Field | Meaning |
+| --- | --- |
+| `price_opt_in` | Whether the pharmacy has separately agreed to share prices. `false` unless it chose otherwise. No listing route returns a price today. |
+| `profile_completed_at` | When the pharmacy finished setting up its listing, or `null`. |
+| `updated_at` | When the profile last changed, or `null`. |
+
+## Things to know
+
+- **You get what the pharmacy allowed, and no more.** There is no exact quantity, price, cost or customer information on any of these routes.
+- **A pharmacy you cannot reach looks like a pharmacy that does not exist.** On the two per-pharmacy routes the answer is `404` with `code: "not_found"`: no connection, a revoked connection, or a wrong id are never told apart.
+- **A missing permission is `403` with `code: "scope_missing"`.** The pharmacy granted your connection some permissions but not this one. See [Permissions](/permissions).
+- **Bad input is `400` with `code: "invalid_request"`**, with an `errors` list naming each field. An unknown query parameter is refused too. All error codes are on [Errors](/errors).
+- **Rate limits are per key.** Network searches count like any other request. Read `RateLimit-Remaining` and see [Rate limits](/rate-limits).
+- **When something changes you can be told instead of asking again.** See [Events](/events).
+
+## Recipes
+
+**Show "pharmacies near me that have this medicine".**
+
+1. `POST /v1/listings/search` with the medicine's barcode (`{ "system": "gtin", … }`) if you have one, otherwise its name, plus the user's `near` point.
+2. Show `in_stock` and `low` first, and show `unknown` as "may be out of date", never as out of stock. Show `as_of` next to each.
+3. When the user confirms or contradicts a result, send `POST /v1/listings/feedback` with the matching `outcome`.
+
+**Build a pharmacy directory.** Page through `GET /v1/listings/pharmacies` until `has_more` is `false`, and store each pharmacy by `clinic_id`. To refresh one pharmacy later, read its profile and compare `updated_at`.
+
+**Keep a local copy of one pharmacy's catalogue.** Read `GET /v1/clinics/{clinic_id}/listing/items` once, then call it again with `updated_since` set to the time of your last read. Treat each band as only as fresh as its `as_of`.

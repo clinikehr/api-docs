@@ -9,7 +9,7 @@ info:
 
     Write requests accept an `Idempotency-Key` header so a retry never repeats a change. See the guides for authentication, permissions, pagination, rate limits and retries.
 servers:
-  - url: https://api.clinikehr.com/v1
+  - url: https://api.clinikehr.com
 security:
   - ApiKey: []
 components:
@@ -1184,7 +1184,7 @@ components:
           oneOf:
             - type: array
               minItems: 1
-              maxItems: 1000
+              maxItems: 100
               items:
                 type: object
             - type: string
@@ -5979,6 +5979,23 @@ components:
             - unknown
         is_primary:
           type: boolean
+  parameters:
+    IdempotencyKeyRequired:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: A unique value you choose for this request, such as a UUID. Sending the same key again returns the first answer instead of doing the work twice, so a timed-out request is safe to retry. Reusing a key for a different request is refused with `409 idempotency_key_conflict`, and retrying while the first request is still running with `409 idempotency_key_reused`. See Retries and idempotency.
+      schema:
+        type: string
+        minLength: 1
+    IdempotencyKeyOptional:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Optional. A unique value you choose for this request, such as a UUID. When sent, a retry with the same key returns the first answer instead of applying the change twice. See Retries and idempotency.
+      schema:
+        type: string
+        minLength: 1
   responses:
     Unauthorized:
       description: Missing, malformed, unknown, revoked or expired key, or the wrong secret.
@@ -6034,8 +6051,8 @@ paths:
       operationId: getCapabilityStatement
       tags:
         - Fhir
-      summary: FHIR R4 CapabilityStatement — exactly what this gateway supports, nothing more.
-      description: No bearer key required (this is the same discovery document for every caller); Content-Type is application/fhir+json, not the {data} envelope. Lists ONLY the resources/interactions this gateway actually serves — Patient, Appointment, DocumentReference (notes), Condition, AllergyIntolerance, MedicationStatement, MedicationRequest, Practitioner (providers), Coverage, Organization (insurance payers) and MedicationKnowledge (inventory items), search parameters limited to the query filters the plain JSON routes already accept. There is no _include/_revinclude and no general /fhir passthrough — see the developer guide (api-docs/fhir.mdx) for what a partner will not find.
+      summary: Get the FHIR capability statement
+      description: FHIR R4 CapabilityStatement — exactly what this gateway supports, nothing more. No bearer key required (this is the same discovery document for every caller); Content-Type is application/fhir+json, not the {data} envelope. Lists ONLY the resources/interactions this gateway actually serves — Patient, Appointment, DocumentReference (notes), Condition, AllergyIntolerance, MedicationStatement, MedicationRequest, Practitioner (providers), Coverage, Organization (insurance payers) and MedicationKnowledge (inventory items), search parameters limited to the query filters the plain JSON routes already accept. There is no _include/_revinclude and no general /fhir passthrough — see the developer guide (api-docs/fhir.mdx) for what a partner will not find.
       responses:
         "200":
           description: OK.
@@ -6048,8 +6065,8 @@ paths:
       operationId: getMe
       tags:
         - Me
-      summary: The calling key's identity, environment and scopes.
-      description: Response is the resource DIRECTLY — no `data` wrapper (see the top-level description's "Response envelope" note).
+      summary: Get the current key
+      description: The calling key's identity, environment and scopes. Response is the resource DIRECTLY — no `data` wrapper (see the top-level description's "Response envelope" note).
       security:
         - ApiKey: []
       responses:
@@ -6079,8 +6096,11 @@ paths:
       operationId: listConnections
       tags:
         - Connections
-      summary: Clinics this key can reach, and the scopes granted to it.
-      description: "For a workspace TEST key this is always one entry — the workspace's own sandbox, marked sandbox: true. For a LIVE workspace key this lists every clinic with an ACTIVE, non-expired connection that also still has API access switched on — the same set the key could actually reach on the next call, never a stale or pending one. An unverified workspace, or one with no connections yet, gets an empty list. A clinic-owned key gets exactly one entry, for its own clinic."
+      summary: List connections
+      description: |-
+        Clinics this key can reach, and the scopes granted to it.
+
+        For a workspace TEST key this is always one entry — the workspace's own sandbox, marked sandbox: true. For a LIVE workspace key this lists every clinic with an ACTIVE, non-expired connection that also still has API access switched on — the same set the key could actually reach on the next call, never a stale or pending one. An unverified workspace, or one with no connections yet, gets an empty list. A clinic-owned key gets exactly one entry, for its own clinic.
       security:
         - ApiKey: []
       responses:
@@ -6128,8 +6148,13 @@ paths:
       operationId: listInventoryLocations
       tags:
         - Inventory
-      summary: Stock locations inside the clinic (storerooms, shelves, fridges).
-      description: For a workspace TEST key this reads the workspace's seeded synthetic sandbox, never a real clinic's locations — same shape either way.
+      summary: List stock locations
+      description: |-
+        **Permission:** `inventory.stock:read`
+
+        Stock locations inside the clinic (storerooms, shelves, fridges).
+
+        For a workspace TEST key this reads the workspace's seeded synthetic sandbox, never a real clinic's locations — same shape either way.
       security:
         - ApiKey: []
       parameters:
@@ -6198,8 +6223,13 @@ paths:
       operationId: listInventoryItems
       tags:
         - Inventory
-      summary: The clinic's catalogue.
-      description: For a workspace TEST key this reads the workspace's seeded synthetic sandbox catalogue, never a real clinic's — same shape either way.
+      summary: List catalogue items
+      description: |-
+        **Permission:** `inventory.items:read`
+
+        The clinic's catalogue.
+
+        For a workspace TEST key this reads the workspace's seeded synthetic sandbox catalogue, never a real clinic's — same shape either way.
       security:
         - ApiKey: []
       parameters:
@@ -6301,11 +6331,12 @@ paths:
       operationId: createInventoryItem
       tags:
         - Inventory
-      summary: Add a catalogue item.
-      description: Unknown fields refused by name. container_sale_price/container_cost are refused outright.
+      summary: Create a catalogue item
+      description: "**Permission:** `inventory.items:write` Add a catalogue item. Unknown fields refused by name. container_sale_price/container_cost are refused outright."
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -6345,8 +6376,13 @@ paths:
       operationId: getInventoryItem
       tags:
         - Inventory
-      summary: One catalogue item.
-      description: Response is the item DIRECTLY — no `data` wrapper (see the top-level description's "Response envelope" note).
+      summary: Get a catalogue item
+      description: |-
+        **Permission:** `inventory.items:read`
+
+        One catalogue item.
+
+        Response is the item DIRECTLY — no `data` wrapper (see the top-level description's "Response envelope" note).
       security:
         - ApiKey: []
       parameters:
@@ -6401,11 +6437,12 @@ paths:
       operationId: updateInventoryItem
       tags:
         - Inventory
-      summary: Update a catalogue item.
-      description: Absent field ≠ JSON null. Idempotency-Key OPTIONAL — a PATCH is naturally idempotent.
+      summary: Update a catalogue item
+      description: "**Permission:** `inventory.items:write` Update a catalogue item. Absent field ≠ JSON null. Idempotency-Key OPTIONAL — a PATCH is naturally idempotent."
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
         - name: clinic_id
           in: path
           required: true
@@ -6451,8 +6488,13 @@ paths:
       operationId: postInventoryAvailability
       tags:
         - Inventory
-      summary: Availability for up to 100 items, by id or by identifier.
-      description: For a workspace TEST key this reads the workspace's seeded synthetic sandbox — same shape either way.
+      summary: Check item availability
+      description: |-
+        **Permission:** `inventory.availability:read`
+
+        Availability for up to 100 items, by id or by identifier.
+
+        For a workspace TEST key this reads the workspace's seeded synthetic sandbox — same shape either way.
       security:
         - ApiKey: []
       parameters:
@@ -6512,8 +6554,13 @@ paths:
       operationId: listInventoryStock
       tags:
         - Inventory
-      summary: Exact quantities per location and lot.
-      description: For a workspace TEST key this reads the workspace's seeded synthetic sandbox stock, never a real clinic's — same shape either way.
+      summary: List stock quantities
+      description: |-
+        **Permission:** `inventory.stock:read`
+
+        Exact quantities per location and lot.
+
+        For a workspace TEST key this reads the workspace's seeded synthetic sandbox stock, never a real clinic's — same shape either way.
       security:
         - ApiKey: []
       parameters:
@@ -6603,8 +6650,8 @@ paths:
       operationId: listListingPharmacies
       tags:
         - Listing
-      summary: Every pharmacy this key's workspace can reach through an active listing connection.
-      description: No clinic in the path — the calling key's organization must hold an ACTIVE connection granting listing.profile:read to each returned clinic; a clinic-owned key always gets an empty page. For a workspace TEST key this reads the workspace's own seeded fictional pharmacies instead — the same shape either way. Never an exact quantity; profile fields only.
+      summary: List reachable pharmacies
+      description: "**Permission:** `listing.profile:read` Every pharmacy this key's workspace can reach through an active listing connection. No clinic in the path — the calling key's organization must hold an ACTIVE connection granting listing.profile:read to each returned clinic; a clinic-owned key always gets an empty page. For a workspace TEST key this reads the workspace's own seeded fictional pharmacies instead — the same shape either way. Never an exact quantity; profile fields only."
       security:
         - ApiKey: []
       parameters:
@@ -6678,8 +6725,8 @@ paths:
       operationId: postListingSearch
       tags:
         - Listing
-      summary: Search by medicine identity across every listed pharmacy this key's workspace can reach.
-      description: A clinic-owned key always gets an empty result. For a workspace TEST key this searches the workspace's own seeded fictional items instead. Fail-closed allow-list — an unlinked or excluded item never appears, code or text search alike. Never an exact quantity; band only. Capped at 50 results.
+      summary: Search listed pharmacies
+      description: "**Permission:** `listing.availability:read` Search by medicine identity across every listed pharmacy this key's workspace can reach. A clinic-owned key always gets an empty result. For a workspace TEST key this searches the workspace's own seeded fictional items instead. Fail-closed allow-list — an unlinked or excluded item never appears, code or text search alike. Never an exact quantity; band only. Capped at 50 results."
       security:
         - ApiKey: []
       requestBody:
@@ -6732,8 +6779,8 @@ paths:
       operationId: postListingFeedback
       tags:
         - Listing
-      summary: Report whether a network-search result was actually useful. No user data.
-      description: Nothing reads this yet; it is recorded for future freshness tuning.
+      summary: Send search feedback
+      description: "**Permission:** `listing.availability:read` Report whether a network-search result was actually useful. No user data. Nothing reads this yet; it is recorded for future freshness tuning."
       security:
         - ApiKey: []
       requestBody:
@@ -6778,8 +6825,8 @@ paths:
       operationId: listClinicListingItems
       tags:
         - Listing
-      summary: One listed pharmacy's items with bands (cache warm-up).
-      description: Has a clinic in the path, so it goes through the ordinary key/clinic authorization every other per-clinic route uses. Linked, listable, non-excluded items only.
+      summary: List a pharmacy's listed items
+      description: "**Permission:** `listing.availability:read` One listed pharmacy's items with bands (cache warm-up). Has a clinic in the path, so it goes through the ordinary key/clinic authorization every other per-clinic route uses. Linked, listable, non-excluded items only."
       security:
         - ApiKey: []
       parameters:
@@ -6853,8 +6900,8 @@ paths:
       operationId: getClinicListingProfile
       tags:
         - Listing
-      summary: One listed pharmacy's public listing profile.
-      description: Response is the profile DIRECTLY — no `data` wrapper (see the top-level description's "Response envelope" note). Has a clinic in the path, so it goes through the ordinary key/clinic authorization. For a workspace TEST key this reaches only that workspace's own sandbox pharmacy.
+      summary: Get a pharmacy's listing profile
+      description: "**Permission:** `listing.profile:read` One listed pharmacy's public listing profile. Response is the profile DIRECTLY — no `data` wrapper (see the top-level description's \"Response envelope\" note). Has a clinic in the path, so it goes through the ordinary key/clinic authorization. For a workspace TEST key this reaches only that workspace's own sandbox pharmacy."
       security:
         - ApiKey: []
       parameters:
@@ -6905,8 +6952,8 @@ paths:
       operationId: listPatients
       tags:
         - Patients
-      summary: List patients in scope for this key's connection.
-      description: Restricted/access-controlled patients never appear.
+      summary: List patients
+      description: "**Permission:** `patients:read` List patients in scope for this key's connection. Restricted/access-controlled patients never appear."
       security:
         - ApiKey: []
       parameters:
@@ -6986,11 +7033,12 @@ paths:
       operationId: createPatient
       tags:
         - Patients
-      summary: Create a patient. Possible duplicates are flagged for staff review, never silently merged or refused.
-      description: run_automations defaults false, suppressing the patient.created Agent Studio dispatch.
+      summary: Create a patient
+      description: "**Permission:** `patients:write` Create a patient. Possible duplicates are flagged for staff review, never silently merged or refused. run_automations defaults false, suppressing the patient.created Agent Studio dispatch."
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -7059,8 +7107,13 @@ paths:
       operationId: getPatient
       tags:
         - Patients
-      summary: Get one patient by id.
-      description: A restricted patient, or one in another clinic, answers not_found — identical to absent (I-3).
+      summary: Get a patient
+      description: |-
+        **Permission:** `patients:read`
+
+        Get one patient by id.
+
+        A restricted patient, or one in another clinic, answers not_found — identical to absent (I-3).
       security:
         - ApiKey: []
       parameters:
@@ -7100,7 +7153,7 @@ paths:
       operationId: updatePatient
       tags:
         - Patients
-      summary: Update a patient. Absent fields are unchanged; JSON null clears a nullable field.
+      summary: Update a patient
       security:
         - ApiKey: []
       parameters:
@@ -7144,13 +7197,17 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `patients:write`
+
+        Update a patient. Absent fields are unchanged; JSON null clears a nullable field.
   /v1/clinics/{clinic_id}/patients/{patient_id}/archive:
     post:
       operationId: archivePatient
       tags:
         - Patients
-      summary: Archive a patient. Never a delete.
-      description: "Sets patients.client_status = 'archived' — the SAME write the app's own archive control makes (db/actions/patients.ts::updateClientStatus). Never removes any row. Idempotent: archiving an already-archived patient succeeds again. A restricted patient, or one in another clinic, answers not_found — identical to absent (I-3)."
+      summary: Archive a patient
+      description: "**Permission:** `patients:write` Archive a patient. Never a delete. Sets patients.client_status = 'archived' — the SAME write the app's own archive control makes (db/actions/patients.ts::updateClientStatus). Never removes any row. Idempotent: archiving an already-archived patient succeeds again. A restricted patient, or one in another clinic, answers not_found — identical to absent (I-3)."
       security:
         - ApiKey: []
       parameters:
@@ -7191,8 +7248,8 @@ paths:
       operationId: listPatientDuplicateFlags
       tags:
         - Patients
-      summary: Possible-duplicate pairs flagged for staff review.
-      description: "A sandbox (test) key always sees an empty list: the create adapter never seeds this table for a sandbox organization."
+      summary: List possible duplicate patients
+      description: "**Permission:** `patients:read` Possible-duplicate pairs flagged for staff review. A sandbox (test) key always sees an empty list: the create adapter never seeds this table for a sandbox organization."
       security:
         - ApiKey: []
       parameters:
@@ -7259,8 +7316,8 @@ paths:
       operationId: searchPatients
       tags:
         - Patients
-      summary: Exact-match patient search by two or more identifiers. Identifiers in the body, never a URL.
-      description: 'Never a name-only or partial match; at least two identifiers of DIFFERENT kinds (email, phone, mrn) are required, so this cannot be used to iterate one field at a time. Capped at 5 results. "No match" and "not permitted" are the identical response — an empty `data` array, never a 404: the query itself already excludes anything the caller may not see. For an organization key, results are limited to patients LINKED through that connection — today this is moot in practice (patients:read is PHI, and the organization patient-data master switch ships false), but the route is built and tested as though it were open.'
+      summary: Search patients
+      description: '**Permission:** `patients:read` Exact-match patient search by two or more identifiers. Identifiers in the body, never a URL. Never a name-only or partial match; at least two identifiers of DIFFERENT kinds (email, phone, mrn) are required, so this cannot be used to iterate one field at a time. Capped at 5 results. "No match" and "not permitted" are the identical response — an empty `data` array, never a 404: the query itself already excludes anything the caller may not see. For an organization key, results are limited to patients LINKED through that connection — today this is moot in practice (patients:read is PHI, and the organization patient-data master switch ships false), but the route is built and tested as though it were open.'
       security:
         - ApiKey: []
       parameters:
@@ -7303,8 +7360,8 @@ paths:
       operationId: startPatientImport
       tags:
         - Patients
-      summary: Import up to 100 patients from a FHIR Bundle, NDJSON, or a JSON array. Nothing is written unless every row is valid.
-      description: "The same import the app's Patients screen offers, for the clinic's OWN key. The file is checked in full before anything is written: every row goes through the same validation a real create does. If EVERY row is valid the import runs at once and the response is the finished job (`status: succeeded`). If ANY row fails, nothing is written and the response is the job with `status: needs_review` and a `row_errors` list — row number, field and reason for each, never the value that failed. Fix the file and send it again, or call `runValidPatientImportRows` to import only the rows that passed. A file with exactly the same content that has already been imported is refused `already_imported`, so retrying a timed-out call is safe; no Idempotency-Key is needed or read. An import contacts no patient and starts no automation. A possible duplicate is still created and counted in `flagged_duplicate`, for staff to review. Limits: 100 rows and 10 MiB, refused before any row is read. Needs `patients:write`, the API add-on and the accepted API data agreement. Only a clinic's own key may import — an organization connected to the clinic may not, whatever it was granted (`not_found`)."
+      summary: Start a patient import
+      description: "**Permission:** `patients:write` Import up to 100 patients from a FHIR Bundle, NDJSON, or a JSON array. Nothing is written unless every row is valid. The same import the app's Patients screen offers, for the clinic's OWN key. The file is checked in full before anything is written: every row goes through the same validation a real create does. If EVERY row is valid the import runs at once and the response is the finished job (`status: succeeded`). If ANY row fails, nothing is written and the response is the job with `status: needs_review` and a `row_errors` list — row number, field and reason for each, never the value that failed. Fix the file and send it again, or call `runValidPatientImportRows` to import only the rows that passed. A file with exactly the same content that has already been imported is refused `already_imported`, so retrying a timed-out call is safe; no Idempotency-Key is needed or read. An import contacts no patient and starts no automation. A possible duplicate is still created and counted in `flagged_duplicate`, for staff to review. Limits: 100 rows and 10 MiB, refused before any row is read. Needs `patients:write`, the API add-on and the accepted API data agreement. Only a clinic's own key may import — an organization connected to the clinic may not, whatever it was granted (`not_found`)."
       security:
         - ApiKey: []
       parameters:
@@ -7350,8 +7407,8 @@ paths:
       operationId: listPatientImports
       tags:
         - Patients
-      summary: This clinic's import jobs, oldest first.
-      description: Job progress and outcome only — never a file, a patient, or a value that failed validation. Needs `patients:write`, like the rest of the import.
+      summary: List patient imports
+      description: "**Permission:** `patients:write` This clinic's import jobs, oldest first. Job progress and outcome only — never a file, a patient, or a value that failed validation. Needs `patients:write`, like the rest of the import."
       security:
         - ApiKey: []
       parameters:
@@ -7411,8 +7468,8 @@ paths:
       operationId: getPatientImport
       tags:
         - Patients
-      summary: One import job.
-      description: Absent, another clinic's, and not-permitted are one `not_found`.
+      summary: Get a patient import
+      description: "**Permission:** `patients:write` One import job. Absent, another clinic's, and not-permitted are one `not_found`."
       security:
         - ApiKey: []
       parameters:
@@ -7455,8 +7512,8 @@ paths:
       operationId: runValidPatientImportRows
       tags:
         - Patients
-      summary: Import only the rows that passed, for a job waiting for review.
-      description: An explicit, recorded choice — the key that made it is stored on the job. Only a job in `needs_review` whose file is still held (files are deleted after 7 days) can be run this way; anything else is `invalid_status_transition` (409) or `file_expired` (410). Rows that failed stay in `row_errors` for reference and are not imported. The response is the finished job.
+      summary: Import the valid rows
+      description: "**Permission:** `patients:write` Import only the rows that passed, for a job waiting for review. An explicit, recorded choice — the key that made it is stored on the job. Only a job in `needs_review` whose file is still held (files are deleted after 7 days) can be run this way; anything else is `invalid_status_transition` (409) or `file_expired` (410). Rows that failed stay in `row_errors` for reference and are not imported. The response is the finished job."
       security:
         - ApiKey: []
       parameters:
@@ -7503,8 +7560,8 @@ paths:
       operationId: listDispensingHistory
       tags:
         - Dispensing
-      summary: A linked enrollee's own dispensing history — medicine, quantity, days supply, date. Never price.
-      description: patient_id is required. For an organization key, the enrollee must be linked through the connection, or this answers not_found. A clinic's own key may read its own customers' dispensing history under the same scope, with the add-on and agreement.
+      summary: List dispensing history
+      description: "**Permission:** `dispensing:read` A linked enrollee's own dispensing history — medicine, quantity, days supply, date. Never price. patient_id is required. For an organization key, the enrollee must be linked through the connection, or this answers not_found. A clinic's own key may read its own customers' dispensing history under the same scope, with the add-on and agreement."
       security:
         - ApiKey: []
       parameters:
@@ -7570,8 +7627,8 @@ paths:
       operationId: listDispensingFlags
       tags:
         - Dispensing
-      summary: Refill/duplicate-dispensing flags for the caller's linked enrollees, in a date window.
-      description: Each flag's rule, evidence, and the pharmacist's reason — never price, margin, staff identity beyond this, or any other customer of the pharmacy. Never references the "possibly the same person" mechanism — that is a prompt to look, never a finding, and never crosses the API boundary.
+      summary: List dispensing flags
+      description: "**Permission:** `dispensing:read` Refill/duplicate-dispensing flags for the caller's linked enrollees, in a date window. Each flag's rule, evidence, and the pharmacist's reason — never price, margin, staff identity beyond this, or any other customer of the pharmacy. Never references the \"possibly the same person\" mechanism — that is a prompt to look, never a finding, and never crosses the API boundary."
       security:
         - ApiKey: []
       parameters:
@@ -7641,8 +7698,8 @@ paths:
       operationId: createExternalStockBatch
       tags:
         - Inventory
-      summary: Upload a batch of external stock quantities/bands for a pharmacy selling through another till.
-      description: Clinic-owned key only — an organization never pushes a clinic's own stock. batch_id doubles as the idempotency key (a replay of an already-processed batch returns the stored result, never reprocesses). Unmatched rows are counted, never guessed at, never written. A structurally invalid or suspiciously-shrunk batch is rejected (409) — nothing is written to the mirror.
+      summary: Upload an external stock batch
+      description: "**Permission:** `inventory.stock:write` Upload a batch of external stock quantities/bands for a pharmacy selling through another till. Clinic-owned key only — an organization never pushes a clinic's own stock. batch_id doubles as the idempotency key (a replay of an already-processed batch returns the stored result, never reprocesses). Unmatched rows are counted, never guessed at, never written. A structurally invalid or suspiciously-shrunk batch is rejected (409) — nothing is written to the mirror."
       security:
         - ApiKey: []
       parameters:
@@ -7680,7 +7737,7 @@ paths:
       operationId: getExternalStockBatch
       tags:
         - Inventory
-      summary: The stored batch's own status and counts — never the row-level data.
+      summary: Get an external stock batch
       security:
         - ApiKey: []
       parameters:
@@ -7716,12 +7773,16 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `inventory.stock:read`
+
+        The stored batch's own status and counts — never the row-level data.
   /v1/clinics/{clinic_id}/crm/pipelines:
     get:
       operationId: listCrmPipelines
       tags:
         - CRM
-      summary: Pipelines and their stages — non-PHI reference data, for filtering or creating contacts.
+      summary: List pipelines
       security:
         - ApiKey: []
       parameters:
@@ -7751,12 +7812,16 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `crm.pipelines:read`
+
+        Pipelines and their stages — non-PHI reference data, for filtering or creating contacts.
   /v1/clinics/{clinic_id}/crm/contacts:
     get:
       operationId: listCrmContacts
       tags:
         - CRM
-      summary: List this clinic's CRM contacts.
+      summary: List contacts
       security:
         - ApiKey: []
       parameters:
@@ -7821,15 +7886,20 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `crm.contacts:read`
+
+        List this clinic's CRM contacts.
     post:
       operationId: createCrmContact
       tags:
         - CRM
-      summary: Create a CRM contact. Never starts outreach.
-      description: Mirrors db/actions/crm.ts createCrmContact's own validation, defaults, and default-pipeline/stage resolution. is_email_domain_blocked is checked server-side on any email. Both crm_contacts outreach triggers (an Agent Studio automation, a marketing-journey enrollment) are suppressed unconditionally for this write.
+      summary: Create a contact
+      description: "**Permission:** `crm.contacts:write` Create a CRM contact. Never starts outreach. Mirrors db/actions/crm.ts createCrmContact's own validation, defaults, and default-pipeline/stage resolution. is_email_domain_blocked is checked server-side on any email. Both crm_contacts outreach triggers (an Agent Studio automation, a marketing-journey enrollment) are suppressed unconditionally for this write."
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -7869,8 +7939,13 @@ paths:
       operationId: searchCrmContacts
       tags:
         - CRM
-      summary: Exact-match contact search by email or phone. Identifiers in the body, never a URL.
-      description: Never a partial or name match. Capped at 25 results (API6).
+      summary: Search contacts
+      description: |-
+        **Permission:** `crm.contacts:read`
+
+        Exact-match contact search by email or phone. Identifiers in the body, never a URL.
+
+        Never a partial or name match. Capped at 25 results (API6). Each result is the full contact, the same as `GET …/crm/contacts/{contact_id}`, including `do_not_contact`, `unsubscribed_at` and `consent_at`: check them before contacting anyone.
       security:
         - ApiKey: []
       parameters:
@@ -7913,7 +7988,7 @@ paths:
       operationId: getCrmContact
       tags:
         - CRM
-      summary: Get one CRM contact by id.
+      summary: Get a contact
       security:
         - ApiKey: []
       parameters:
@@ -7949,12 +8024,21 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `crm.contacts:read`
+
+        Get one CRM contact by id.
     patch:
       operationId: updateCrmContact
       tags:
         - CRM
-      summary: Update a CRM contact. Absent fields are unchanged; JSON null clears a nullable field.
-      description: status/score/do_not_contact/unsubscribed_at/converted_patient_id/ converted_at/lost_reason are never writable here.
+      summary: Update a contact
+      description: |-
+        **Permission:** `crm.contacts:write`
+
+        Update a CRM contact. Absent fields are unchanged; JSON null clears a nullable field.
+
+        status/score/do_not_contact/unsubscribed_at/converted_patient_id/ converted_at/lost_reason are never writable here.
       security:
         - ApiKey: []
       parameters:
@@ -8003,7 +8087,7 @@ paths:
       operationId: listCrmActivities
       tags:
         - CRM
-      summary: A contact's timeline of activities.
+      summary: List a contact's activities
       security:
         - ApiKey: []
       parameters:
@@ -8064,11 +8148,15 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `crm.activities:read`
+
+        A contact's timeline of activities.
     post:
       operationId: createCrmActivity
       tags:
         - CRM
-      summary: Log a timeline activity (note, call, email, etc.) on a contact.
+      summary: Log an activity
       security:
         - ApiKey: []
       parameters:
@@ -8112,13 +8200,17 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `crm.activities:write`
+
+        Log a timeline activity (note, call, email, etc.) on a contact.
   /v1/clinics/{clinic_id}/notes:
     get:
       operationId: listNotes
       tags:
         - Notes
-      summary: List one patient's clinical notes — metadata only, never note content.
-      description: patient_id is required.
+      summary: List notes
+      description: "**Permission:** `notes:read` List one patient's clinical notes — metadata only, never note content. patient_id is required."
       security:
         - ApiKey: []
       parameters:
@@ -8183,11 +8275,12 @@ paths:
       operationId: createNote
       tags:
         - Notes
-      summary: Create a DRAFT note. Always status=draft — this route can never sign, lock, finalize or co-sign.
-      description: clinician_id is the clinic_staff.id the draft is FOR, never the API caller. Unknown content keys are refused (unknown_field) naming both the offending keys and the full valid list for whichever template note_type/custom_template_id resolves to.
+      summary: Create a draft note
+      description: "**Permission:** `notes:write` Create a DRAFT note. Always status=draft — this route can never sign, lock, finalize or co-sign. clinician_id is the clinic_staff.id the draft is FOR, never the API caller. Unknown content keys are refused (unknown_field) naming both the offending keys and the full valid list for whichever template note_type/custom_template_id resolves to. The answer carries the new note's details with `content: null`; read the note with `GET …/notes/{note_id}` to see its content."
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
         - name: clinic_id
           in: path
           required: true
@@ -8229,8 +8322,13 @@ paths:
       operationId: getNote
       tags:
         - Notes
-      summary: Get one note, including its content.
-      description: A signed/finalized note, a restricted patient's note, or a sensitivity-flagged note, answers not_found.
+      summary: Get a note
+      description: |-
+        **Permission:** `notes:read`
+
+        Get one note, including its content.
+
+        A signed note is returned like any other. A restricted patient's note, a sensitivity-flagged note, or one that does not exist, answers not_found (the three are never told apart).
       security:
         - ApiKey: []
       parameters:
@@ -8270,8 +8368,13 @@ paths:
       operationId: updateNote
       tags:
         - Notes
-      summary: Update a draft this key created, if no clinician has touched it since.
-      description: Refused note_not_editable if the note is signed/locked/finalized or a clinician saved it since this key's own last write.
+      summary: Update a draft note
+      description: |-
+        **Permission:** `notes:write`
+
+        Update a draft this key created, if no clinician has touched it since.
+
+        Refused note_not_editable if the note is signed/locked/finalized or a clinician saved it since this key's own last write. The answer carries the note's details with `content: null`; read the note with `GET …/notes/{note_id}` to see its content.
       security:
         - ApiKey: []
       parameters:
@@ -8322,8 +8425,13 @@ paths:
       operationId: listNoteTemplates
       tags:
         - Notes
-      summary: Every static template plus this clinic's own active custom templates.
-      description: key is exactly what createNote expects (note_type for static, custom_template_id for custom).
+      summary: List note templates
+      description: |-
+        **Permission:** `notes:read`
+
+        Every static template plus this clinic's own active custom templates.
+
+        key is exactly what createNote expects (note_type for static, custom_template_id for custom).
       security:
         - ApiKey: []
       parameters:
@@ -8360,8 +8468,13 @@ paths:
       operationId: getNoteTemplate
       tags:
         - Notes
-      summary: Every field's id/order/title/type/required/options for one template.
-      description: template_key is a static template's exact name (URL-encoded) or this clinic's own custom template id — never a UUID for the static case.
+      summary: Get a note template
+      description: |-
+        **Permission:** `notes:read`
+
+        Every field's id/order/title/type/required/options for one template.
+
+        template_key is a static template's exact name (URL-encoded) or this clinic's own custom template id — never a UUID for the static case.
       security:
         - ApiKey: []
       parameters:
@@ -8403,8 +8516,13 @@ paths:
       operationId: listNoteClinicians
       tags:
         - Notes
-      summary: Every clinic_staff member whose role may hold a note.
-      description: id/display_name/role/active only — no email, phone, or licence number.
+      summary: List note clinicians
+      description: |-
+        **Permission:** `notes:read`
+
+        Every clinic_staff member whose role may hold a note.
+
+        id/display_name/role/active only — no email, phone, or licence number.
       security:
         - ApiKey: []
       parameters:
@@ -8441,7 +8559,7 @@ paths:
       operationId: listAppointmentServices
       tags:
         - Appointments
-      summary: Bookable services — discovery, non-PHI.
+      summary: List bookable services
       security:
         - ApiKey: []
       parameters:
@@ -8473,12 +8591,16 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `appointments.availability:read`
+
+        Bookable services — discovery, non-PHI.
   /v1/clinics/{clinic_id}/appointments/clinicians:
     get:
       operationId: listAppointmentClinicians
       tags:
         - Appointments
-      summary: Clinicians, optionally filtered to those offering one service — discovery, non-PHI.
+      summary: List bookable clinicians
       security:
         - ApiKey: []
       parameters:
@@ -8518,13 +8640,22 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `appointments.availability:read`
+
+        Clinicians, optionally filtered to those offering one service — discovery, non-PHI.
   /v1/clinics/{clinic_id}/appointments/availability:
     get:
       operationId: getAppointmentsAvailability
       tags:
         - Appointments
-      summary: Bookable slots for a service over a date range — discovery, non-PHI.
-      description: Range clamped to 60 days.
+      summary: Get available slots
+      description: |-
+        **Permission:** `appointments.availability:read`
+
+        Bookable slots for a service over a date range — discovery, non-PHI.
+
+        Range clamped to 60 days.
       security:
         - ApiKey: []
       parameters:
@@ -8595,8 +8726,13 @@ paths:
       operationId: listAppointments
       tags:
         - Appointments
-      summary: List appointments.
-      description: A restricted patient's appointment is excluded. Date range clamped to 366 days.
+      summary: List appointments
+      description: |-
+        **Permission:** `appointments:read`
+
+        List appointments.
+
+        A restricted patient's appointment is excluded. Date range clamped to 366 days.
       security:
         - ApiKey: []
       parameters:
@@ -8698,11 +8834,17 @@ paths:
       operationId: createAppointment
       tags:
         - Appointments
-      summary: Book an appointment — the same eligibility, out-of-office and double-booking rules as the app.
-      description: "REQUIRED FOLLOW-UP: multi-service visit plans, package/deposit/discount redemption, default-document assignment and group appointments are NOT reproduced — a scope cut, not a bug."
+      summary: Book an appointment
+      description: |-
+        **Permission:** `appointments:write`
+
+        Book an appointment — the same eligibility, out-of-office and double-booking rules as the app.
+
+        REQUIRED FOLLOW-UP: multi-service visit plans, package/deposit/discount redemption, default-document assignment and group appointments are NOT reproduced — a scope cut, not a bug.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -8744,7 +8886,7 @@ paths:
       operationId: getAppointment
       tags:
         - Appointments
-      summary: Get one appointment.
+      summary: Get an appointment
       security:
         - ApiKey: []
       parameters:
@@ -8780,14 +8922,25 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `appointments:read`
+
+        Get one appointment.
     patch:
       operationId: updateAppointment
       tags:
         - Appointments
-      summary: Reschedule or update an appointment. Immutable after create — patient_id, service_id, location_id, every payment field — are refused if sent.
+      summary: Update an appointment
+      description: |-
+        **Permission:** `appointments:write`
+
+        Reschedule or update an appointment. Immutable after create — patient_id, service_id, location_id, every payment field — are refused if sent.
+
+        A new `start_at` or `clinician_id` is checked exactly as a new booking is (the slot must be free and the clinician bookable). Other fields are plain edits; an absent field is unchanged. `status` may only move to `confirmed` here; use the cancel route to cancel. A cancelled, completed or no-show appointment cannot be changed. With a test key, rescheduling is not available: cancel the sandbox appointment and book a new one.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -8835,10 +8988,11 @@ paths:
       operationId: cancelAppointment
       tags:
         - Appointments
-      summary: Cancel an appointment. The only route that may set status=cancelled.
+      summary: Cancel an appointment
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -8881,12 +9035,16 @@ paths:
           $ref: "#/components/responses/Conflict"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `appointments:write`
+
+        Cancel an appointment. The only route that may set status=cancelled.
   /v1/clinics/{clinic_id}/inventory/items/{item_id}/archive:
     post:
       operationId: archiveInventoryItem
       tags:
         - Inventory
-      summary: Archive an item. Soft only — refused (item_has_stock) while any stock remains. No delete route exists, ever.
+      summary: Archive a catalogue item
       security:
         - ApiKey: []
       parameters:
@@ -8919,15 +9077,20 @@ paths:
           $ref: "#/components/responses/Conflict"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `inventory.items:write`
+
+        Archive an item. Soft only — refused (item_has_stock) while any stock remains. No delete route exists, ever.
   /v1/clinics/{clinic_id}/inventory/receive:
     post:
       operationId: receiveInventory
       tags:
         - Inventory
-      summary: Receive stock into a lot at a location, through the ledger.
+      summary: Receive stock
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -8964,15 +9127,20 @@ paths:
           $ref: "#/components/responses/Conflict"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `inventory.stock:write`
+
+        Receive stock into a lot at a location, through the ledger.
   /v1/clinics/{clinic_id}/inventory/adjust:
     post:
       operationId: adjustInventory
       tags:
         - Inventory
-      summary: Adjust stock on one lot, through the ledger. A reason is required.
+      summary: Adjust stock
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -9009,16 +9177,26 @@ paths:
           $ref: "#/components/responses/Conflict"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `inventory.stock:write`
+
+        Adjust stock on one lot, through the ledger. A reason is required.
   /v1/clinics/{clinic_id}/inventory/transfer:
     post:
       operationId: transferInventory
       tags:
         - Inventory
-      summary: Transfer stock between two of this clinic's own active locations.
-      description: Every controlled drug is refused outright — an API key has no witness identity to offer.
+      summary: Transfer stock
+      description: |-
+        **Permission:** `inventory.stock:write`
+
+        Transfer stock between two of this clinic's own active locations.
+
+        Every controlled drug is refused outright — an API key has no witness identity to offer.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -9060,11 +9238,12 @@ paths:
       operationId: uploadPartnerCodes
       tags:
         - Inventory
-      summary: Upload up to 1,000 of a partner's own medicine codes. An exact identifier match links automatically; the rest wait for review.
-      description: Idempotent by construction — Idempotency-Key optional. Unknown per-row fields are refused by name WITHOUT aborting the rest of the batch.
+      summary: Upload medicine codes
+      description: "**Permission:** `inventory.items:write` Upload up to 1,000 of a partner's own medicine codes. An exact identifier match links automatically; the rest wait for review. Idempotent by construction — Idempotency-Key optional. Unknown per-row fields are refused by name WITHOUT aborting the rest of the batch."
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
         - name: clinic_id
           in: path
           required: true
@@ -9105,7 +9284,7 @@ paths:
       operationId: listPartnerCodes
       tags:
         - Inventory
-      summary: This caller's own uploaded code list.
+      summary: List your medicine codes
       security:
         - ApiKey: []
       parameters:
@@ -9170,12 +9349,16 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `inventory.items:write`
+
+        This caller's own uploaded code list.
   /v1/clinics/{clinic_id}/inventory/codes/{code_entry_id}:
     get:
       operationId: getPartnerCode
       tags:
         - Inventory
-      summary: Get one uploaded code row.
+      summary: Get a medicine code
       security:
         - ApiKey: []
       parameters:
@@ -9211,12 +9394,21 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `inventory.items:write`
+
+        Get one uploaded code row.
     delete:
       operationId: deletePartnerCode
       tags:
         - Inventory
-      summary: Delete one uploaded code row.
-      description: A zero-row match is not_found, never reported as a false success.
+      summary: Delete a medicine code
+      description: |-
+        **Permission:** `inventory.items:write`
+
+        Delete one uploaded code row.
+
+        A zero-row match is not_found, never reported as a false success.
       security:
         - ApiKey: []
       parameters:
@@ -9258,8 +9450,8 @@ paths:
       operationId: listEvents
       tags:
         - Events
-      summary: The clinic's own change feed — catch-up for a partner whose webhook endpoint was down.
-      description: Authorizes via the same scope-less /v1/me shape; filters to event types whose required_scope the key's CURRENT scopes cover.
+      summary: List events
+      description: The clinic's own change feed — catch-up for a partner whose webhook endpoint was down. Authorizes via the same scope-less /v1/me shape; filters to event types whose required_scope the key's CURRENT scopes cover.
       security:
         - ApiKey: []
       parameters:
@@ -9318,8 +9510,8 @@ paths:
       operationId: listDrugRequests
       tags:
         - Drug requests
-      summary: List drug requests sent to this clinic. An org-owned key sees only requests ITS OWN connection created.
-      description: No route here lets a requester accept, mark ready, or dispense — those are staff-only, in the app.
+      summary: List drug requests
+      description: "**Permission:** `requests:read` List drug requests sent to this clinic. An org-owned key sees only requests ITS OWN connection created. No route here lets a requester accept, mark ready, or dispense — those are staff-only, in the app."
       security:
         - ApiKey: []
       parameters:
@@ -9394,11 +9586,12 @@ paths:
       operationId: createDrugRequest
       tags:
         - Drug requests
-      summary: Send a drug request for a linked enrollee. The pharmacist decides; dispensing happens at the till only.
-      description: clinic_patient_id must already be a patient of this clinic. needed_by defaults to now()+7 days when absent. No price/cost/amount field exists anywhere on this resource.
+      summary: Send a drug request
+      description: "**Permission:** `requests:write` Send a drug request for a linked enrollee. The pharmacist decides; dispensing happens at the till only. clinic_patient_id must already be a patient of this clinic. needed_by defaults to now()+7 days when absent. No price/cost/amount field exists anywhere on this resource."
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -9440,8 +9633,13 @@ paths:
       operationId: getDrugRequest
       tags:
         - Drug requests
-      summary: Get one drug request by id, including its lines.
-      description: A request outside this key's org (or clinic), or absent, answers not_found — identical, one message.
+      summary: Get a drug request
+      description: |-
+        **Permission:** `requests:read`
+
+        Get one drug request by id, including its lines.
+
+        A request outside this key's org (or clinic), or absent, answers not_found — identical, one message.
       security:
         - ApiKey: []
       parameters:
@@ -9482,8 +9680,8 @@ paths:
       operationId: cancelDrugRequest
       tags:
         - Drug requests
-      summary: Cancel a drug request. Never available once dispensed.
-      description: Refused with invalid_status_transition (409) when the current status does not allow a requester cancel.
+      summary: Cancel a drug request
+      description: "**Permission:** `requests:write` Cancel a drug request. Never available once dispensed. Refused with invalid_status_transition (409) when the current status does not allow a requester cancel."
       security:
         - ApiKey: []
       parameters:
@@ -9534,8 +9732,8 @@ paths:
       operationId: confirmDrugRequestSubstitution
       tags:
         - Drug requests
-      summary: Accept or decline a pharmacist-proposed substitute. Only valid from status=substituted.
-      description: Declining ends the whole request (declined) — the requester may submit a new request rather than looping back to submitted.
+      summary: Answer a substitution
+      description: "**Permission:** `requests:write` Accept or decline a pharmacist-proposed substitute. Only valid from status=substituted. Declining ends the whole request (declined) — the requester may submit a new request rather than looping back to submitted."
       security:
         - ApiKey: []
       parameters:
@@ -9586,8 +9784,13 @@ paths:
       operationId: listConditions
       tags:
         - Conditions
-      summary: List one patient's conditions (the confirmed problem list, or what this key submitted).
-      description: "`patient_id` is required. `review_status` picks the view: `confirmed` (default) is the clinic's own problem list; `pending` is this key's own submissions still waiting for a clinician (and those a clinician rejected); `all` is both. A key never sees another party's submissions. A restricted patient's conditions are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 Condition resources."
+      summary: List conditions
+      description: |-
+        **Permission:** `conditions:read`
+
+        List one patient's conditions (the confirmed problem list, or what this key submitted).
+
+        `patient_id` is required. `review_status` picks the view: `confirmed` (default) is the clinic's own problem list; `pending` is this key's own submissions still waiting for a clinician (and those a clinician rejected); `all` is both. A key never sees another party's submissions. A restricted patient's conditions are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 Condition resources.
       security:
         - ApiKey: []
       parameters:
@@ -9669,11 +9872,17 @@ paths:
       operationId: createCondition
       tags:
         - Conditions
-      summary: Submit a condition for a clinician to confirm.
-      description: "The condition is held for review and answers 202 Accepted with a `Location` header pointing at the submission; it is not in the problem list until a clinician confirms it. The `Idempotency-Key` header is REQUIRED — a retry with the same key returns the original submission, never a second one. Send `client_reference` to tie the record to your own id. Also accepts a FHIR R4 Condition body (`Content-Type: application/fhir+json`)."
+      summary: Submit a condition
+      description: |-
+        **Permission:** `conditions:write`
+
+        Submit a condition for a clinician to confirm.
+
+        The condition is held for review and answers 202 Accepted with a `Location` header pointing at the submission; it is not in the problem list until a clinician confirms it. The `Idempotency-Key` header is REQUIRED — a retry with the same key returns the original submission, never a second one. Send `client_reference` to tie the record to your own id. Also accepts a FHIR R4 Condition body (`Content-Type: application/fhir+json`).
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -9723,8 +9932,13 @@ paths:
       operationId: getCondition
       tags:
         - Conditions
-      summary: Get one condition from the problem list.
-      description: "With `Accept: application/fhir+json` the answer is a FHIR R4 Condition."
+      summary: Get a condition
+      description: |-
+        **Permission:** `conditions:read`
+
+        Get one condition from the problem list.
+
+        With `Accept: application/fhir+json` the answer is a FHIR R4 Condition.
       security:
         - ApiKey: []
       parameters:
@@ -9766,11 +9980,17 @@ paths:
       operationId: updateCondition
       tags:
         - Conditions
-      summary: Propose a change to a condition, or retract it.
-      description: "The change is held for a clinician to confirm and answers 202 Accepted with a `Location` header pointing at the new submission; the problem-list entry is unchanged until then. `clinical_status: entered_in_error` proposes a retraction. The `Idempotency-Key` header is optional. Also accepts a FHIR R4 Condition body (`Content-Type: application/fhir+json`)."
+      summary: Update or retract a condition
+      description: |-
+        **Permission:** `conditions:write`
+
+        Propose a change to a condition, or retract it.
+
+        The change is held for a clinician to confirm and answers 202 Accepted with a `Location` header pointing at the new submission; the problem-list entry is unchanged until then. `clinical_status: entered_in_error` proposes a retraction. The `Idempotency-Key` header is optional. Also accepts a FHIR R4 Condition body (`Content-Type: application/fhir+json`).
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
         - name: clinic_id
           in: path
           required: true
@@ -9823,8 +10043,13 @@ paths:
       operationId: listAllergies
       tags:
         - Allergies
-      summary: List one patient's allergies (the confirmed chart, or what this key submitted).
-      description: "`patient_id` is required. `review_status` picks the view: `confirmed` (default) is the clinic's own allergy list; `pending` is this key's own submissions still waiting for a clinician (and those a clinician rejected); `all` is both. `clinical_status` filters the confirmed records. The confirmed list also includes allergies that are only a name on the clinic's simple allergy list, as `entry: legacy_text` items with no id. An empty list does NOT mean \"no known allergies\". A restricted patient's allergies are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 AllergyIntolerance resources."
+      summary: List allergies
+      description: |-
+        **Permission:** `allergies:read`
+
+        List one patient's allergies (the confirmed chart, or what this key submitted).
+
+        `patient_id` is required. `review_status` picks the view: `confirmed` (default) is the clinic's own allergy list; `pending` is this key's own submissions still waiting for a clinician (and those a clinician rejected); `all` is both. `clinical_status` filters the confirmed records. The confirmed list also includes allergies that are only a name on the clinic's simple allergy list, as `entry: legacy_text` items with no id. An empty list does NOT mean "no known allergies". A restricted patient's allergies are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 AllergyIntolerance resources.
       security:
         - ApiKey: []
       parameters:
@@ -9915,11 +10140,17 @@ paths:
       operationId: createAllergy
       tags:
         - Allergies
-      summary: Submit an allergy for a clinician to confirm.
-      description: "The allergy is held for review and answers 202 Accepted with a `Location` header pointing at the submission; it is not on the chart until a clinician confirms it. The `Idempotency-Key` header is REQUIRED - a retry with the same key returns the original submission, never a second one. An allergy the patient already has is not refused: it is held for a clinician like any other, who rejects the duplicate. JSON only: a FHIR AllergyIntolerance body is not accepted."
+      summary: Submit an allergy
+      description: |-
+        **Permission:** `allergies:write`
+
+        Submit an allergy for a clinician to confirm.
+
+        The allergy is held for review and answers 202 Accepted with a `Location` header pointing at the submission; it is not on the chart until a clinician confirms it. The `Idempotency-Key` header is REQUIRED - a retry with the same key returns the original submission, never a second one. An allergy the patient already has is not refused: it is held for a clinician like any other, who rejects the duplicate. JSON only: a FHIR AllergyIntolerance body is not accepted.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -9969,8 +10200,13 @@ paths:
       operationId: getAllergy
       tags:
         - Allergies
-      summary: Get one allergy from the chart.
-      description: "Only a detailed (structured) allergy has an id; an allergy that is only a name on the clinic's simple list is not fetchable by id. With `Accept: application/fhir+json` the answer is a FHIR R4 AllergyIntolerance."
+      summary: Get an allergy
+      description: |-
+        **Permission:** `allergies:read`
+
+        Get one allergy from the chart.
+
+        Only a detailed (structured) allergy has an id; an allergy that is only a name on the clinic's simple list is not fetchable by id. With `Accept: application/fhir+json` the answer is a FHIR R4 AllergyIntolerance.
       security:
         - ApiKey: []
       parameters:
@@ -10012,11 +10248,17 @@ paths:
       operationId: updateAllergy
       tags:
         - Allergies
-      summary: Propose a change to an allergy, or retract it.
-      description: "The change is held for a clinician to confirm and answers 202 Accepted with a `Location` header pointing at the new submission; the allergy is unchanged until then. `clinical_status: entered_in_error` proposes a retraction. The substance cannot be changed. The `Idempotency-Key` header is optional. JSON only: a FHIR AllergyIntolerance body is not accepted."
+      summary: Update or retract an allergy
+      description: |-
+        **Permission:** `allergies:write`
+
+        Propose a change to an allergy, or retract it.
+
+        The change is held for a clinician to confirm and answers 202 Accepted with a `Location` header pointing at the new submission; the allergy is unchanged until then. `clinical_status: entered_in_error` proposes a retraction. The substance cannot be changed. The `Idempotency-Key` header is optional. JSON only: a FHIR AllergyIntolerance body is not accepted.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
         - name: clinic_id
           in: path
           required: true
@@ -10069,8 +10311,13 @@ paths:
       operationId: listMedicationStatements
       tags:
         - Medications
-      summary: List one patient's reported medicines (the confirmed chart, or what this key submitted).
-      description: "`patient_id` is required. `review_status` picks the view: `confirmed` (default) is the clinic's own list of reported medicines; `pending` is this key's own submissions still waiting for a clinician (and those a clinician rejected); `all` is both. `status` filters by the statement's status. A reported medicine is what the patient says they take; it is not a prescription (see `listPrescriptions`). A restricted patient's statements are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 MedicationStatement resources."
+      summary: List reported medicines
+      description: |-
+        **Permission:** `medications:read`
+
+        List one patient's reported medicines (the confirmed chart, or what this key submitted).
+
+        `patient_id` is required. `review_status` picks the view: `confirmed` (default) is the clinic's own list of reported medicines; `pending` is this key's own submissions still waiting for a clinician (and those a clinician rejected); `all` is both. `status` filters by the statement's status. A reported medicine is what the patient says they take; it is not a prescription (see `listPrescriptions`). A restricted patient's statements are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 MedicationStatement resources.
       security:
         - ApiKey: []
       parameters:
@@ -10164,11 +10411,17 @@ paths:
       operationId: createMedicationStatement
       tags:
         - Medications
-      summary: Submit a reported medicine for a clinician to confirm.
-      description: "The statement is held for review and answers 202 Accepted with a `Location` header pointing at the submission; it is not on the chart until a clinician confirms it (unless the clinic has chosen to accept such submissions automatically). The `Idempotency-Key` header is REQUIRED - a retry with the same key returns the original submission, never a second one. This records what the patient reports taking; it does not prescribe or dispense anything. JSON only: a FHIR MedicationStatement body is not accepted."
+      summary: Submit a reported medicine
+      description: |-
+        **Permission:** `medications:write`
+
+        Submit a reported medicine for a clinician to confirm.
+
+        The statement is held for review and answers 202 Accepted with a `Location` header pointing at the submission; it is not on the chart until a clinician confirms it (unless the clinic has chosen to accept such submissions automatically). The `Idempotency-Key` header is REQUIRED - a retry with the same key returns the original submission, never a second one. This records what the patient reports taking; it does not prescribe or dispense anything. JSON only: a FHIR MedicationStatement body is not accepted.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -10218,8 +10471,13 @@ paths:
       operationId: getMedicationStatement
       tags:
         - Medications
-      summary: Get one reported medicine from the chart.
-      description: "Only a confirmed statement is fetchable by id. With `Accept: application/fhir+json` the answer is a FHIR R4 MedicationStatement."
+      summary: Get a reported medicine
+      description: |-
+        **Permission:** `medications:read`
+
+        Get one reported medicine from the chart.
+
+        Only a confirmed statement is fetchable by id. With `Accept: application/fhir+json` the answer is a FHIR R4 MedicationStatement.
       security:
         - ApiKey: []
       parameters:
@@ -10261,11 +10519,17 @@ paths:
       operationId: updateMedicationStatement
       tags:
         - Medications
-      summary: Propose a change to a reported medicine, or retract it.
-      description: "The change is held for a clinician to confirm and answers 202 Accepted with a `Location` header pointing at the new submission; the statement is unchanged until then. A change is always reviewed by a clinician, even when the clinic accepts new reported medicines automatically. `status: entered_in_error` proposes a retraction. The medicine cannot be changed. The `Idempotency-Key` header is optional. JSON only: a FHIR MedicationStatement body is not accepted."
+      summary: Update or retract a reported medicine
+      description: |-
+        **Permission:** `medications:write`
+
+        Propose a change to a reported medicine, or retract it.
+
+        The change is held for a clinician to confirm and answers 202 Accepted with a `Location` header pointing at the new submission; the statement is unchanged until then. A change is always reviewed by a clinician, even when the clinic accepts new reported medicines automatically. `status: entered_in_error` proposes a retraction. The medicine cannot be changed. The `Idempotency-Key` header is optional. JSON only: a FHIR MedicationStatement body is not accepted.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
         - name: clinic_id
           in: path
           required: true
@@ -10318,8 +10582,13 @@ paths:
       operationId: listPrescriptions
       tags:
         - Medications
-      summary: List one patient's prescriptions (read only).
-      description: "`patient_id` is required. Prescriptions are read only and minimal: the drug, the dose, the frequency, the status and when it was written, with `source` telling a prescription sent through the clinic's e-prescribing connection (`eprescribe`) from one written in the clinic (`clinic`). There is no route to create or change a prescription. `status` filters by the prescription's status. A restricted patient's prescriptions, and any the clinic has marked sensitive, are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 MedicationRequest resources."
+      summary: List prescriptions
+      description: |-
+        **Permission:** `medications:read`
+
+        List one patient's prescriptions (read only).
+
+        `patient_id` is required. Prescriptions are read only and minimal: the drug, the dose, the frequency, the status and when it was written, with `source` telling a prescription sent through the clinic's e-prescribing connection (`eprescribe`) from one written in the clinic (`clinic`). There is no route to create or change a prescription. `status` filters by the prescription's status. A restricted patient's prescriptions, and any the clinic has marked sensitive, are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 MedicationRequest resources.
       security:
         - ApiKey: []
       parameters:
@@ -10402,8 +10671,13 @@ paths:
       operationId: getPrescription
       tags:
         - Medications
-      summary: Get one prescription (read only).
-      description: "The same minimal fields as the list. With `Accept: application/fhir+json` the answer is a FHIR R4 MedicationRequest."
+      summary: Get a prescription
+      description: |-
+        **Permission:** `medications:read`
+
+        Get one prescription (read only).
+
+        The same minimal fields as the list. With `Accept: application/fhir+json` the answer is a FHIR R4 MedicationRequest.
       security:
         - ApiKey: []
       parameters:
@@ -10446,8 +10720,13 @@ paths:
       operationId: listReferrals
       tags:
         - Referrals
-      summary: List one patient's clinical referrals (the clinic's list, or what this key submitted).
-      description: "`patient_id` is required. `review_status` picks the view: `confirmed` (default) is the clinic's own referral list for the patient, whoever sent each referral; `pending` is this key's own submissions still waiting for clinic staff (and those staff rejected); `all` is both. `status` filters confirmed referrals by the clinic's workflow state. These are clinical referrals to the clinic; they are not the clinic referral programme. A restricted patient's referrals are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 ServiceRequest resources."
+      summary: List referrals
+      description: |-
+        **Permission:** `referrals:read`
+
+        List one patient's clinical referrals (the clinic's list, or what this key submitted).
+
+        `patient_id` is required. `review_status` picks the view: `confirmed` (default) is the clinic's own referral list for the patient, whoever sent each referral; `pending` is this key's own submissions still waiting for clinic staff (and those staff rejected); `all` is both. `status` filters confirmed referrals by the clinic's workflow state. These are clinical referrals to the clinic; they are not the clinic referral programme. A restricted patient's referrals are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 ServiceRequest resources.
       security:
         - ApiKey: []
       parameters:
@@ -10542,11 +10821,17 @@ paths:
       operationId: createReferral
       tags:
         - Referrals
-      summary: Submit a referral to the clinic for its staff to confirm.
-      description: "The referral is held for review and answers 202 Accepted with a `Location` header pointing at the submission; it is not on the clinic's referral list until staff confirm it (unless the clinic has chosen to accept such submissions automatically). Confirming adds it as `received` - it does not accept the referral or book anything; the clinic decides that next, and a sender cannot. The `Idempotency-Key` header is REQUIRED - a retry with the same key returns the original submission, never a second one. This is a clinical referral, not the clinic referral programme. JSON only: a FHIR ServiceRequest body is not accepted."
+      summary: Submit a referral
+      description: |-
+        **Permission:** `referrals:write`
+
+        Submit a referral to the clinic for its staff to confirm.
+
+        The referral is held for review and answers 202 Accepted with a `Location` header pointing at the submission; it is not on the clinic's referral list until staff confirm it (unless the clinic has chosen to accept such submissions automatically). Confirming adds it as `received` - it does not accept the referral or book anything; the clinic decides that next, and a sender cannot. The `Idempotency-Key` header is REQUIRED - a retry with the same key returns the original submission, never a second one. This is a clinical referral, not the clinic referral programme. JSON only: a FHIR ServiceRequest body is not accepted.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -10596,8 +10881,13 @@ paths:
       operationId: getReferral
       tags:
         - Referrals
-      summary: Get one referral from the clinic's list.
-      description: "Only a confirmed referral is fetchable by id. With `Accept: application/fhir+json` the answer is a FHIR R4 ServiceRequest."
+      summary: Get a referral
+      description: |-
+        **Permission:** `referrals:read`
+
+        Get one referral from the clinic's list.
+
+        Only a confirmed referral is fetchable by id. With `Accept: application/fhir+json` the answer is a FHIR R4 ServiceRequest.
       security:
         - ApiKey: []
       parameters:
@@ -10639,11 +10929,17 @@ paths:
       operationId: updateReferral
       tags:
         - Referrals
-      summary: Propose a change to a referral you sent, or retract it.
-      description: "The change is held for clinic staff to confirm and answers 202 Accepted with a `Location` header pointing at the new submission; the referral is unchanged until then. You can change a referral only while the clinic has not acted on it (`status: received`); after staff accept, decline, schedule, complete or cancel it, the request is refused with a 400 saying the clinic has already actioned it. `status: entered_in_error` proposes a retraction, also only while `received`. A sender cannot accept, decline, schedule, complete or cancel a referral. The service cannot be changed. The `Idempotency-Key` header is optional. JSON only: a FHIR ServiceRequest body is not accepted."
+      summary: Update or retract a referral
+      description: |-
+        **Permission:** `referrals:write`
+
+        Propose a change to a referral you sent, or retract it.
+
+        The change is held for clinic staff to confirm and answers 202 Accepted with a `Location` header pointing at the new submission; the referral is unchanged until then. You can change a referral only while the clinic has not acted on it (`status: received`); after staff accept, decline, schedule, complete or cancel it, the request is refused with a 400 saying the clinic has already actioned it. `status: entered_in_error` proposes a retraction, also only while `received`. A sender cannot accept, decline, schedule, complete or cancel a referral. The service cannot be changed. The `Idempotency-Key` header is optional. JSON only: a FHIR ServiceRequest body is not accepted.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
         - name: clinic_id
           in: path
           required: true
@@ -10696,8 +10992,13 @@ paths:
       operationId: listProviders
       tags:
         - Providers
-      summary: List the clinic's providers (its clinicians).
-      description: "The clinic's directory of clinicians: the staff who can author clinical notes, excluding expired memberships. It is read only — there is no way to create, change or remove a provider through the API. Each provider carries the name, title, role, specialties, department, NPI and licences the clinic holds for them; email, phone and every other staff detail are never exposed, and there is no verified flag. `q` (at least 2 characters) matches the provider's name. The provider `id` is the same id the clinician pickers use. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 Practitioner resources."
+      summary: List providers
+      description: |-
+        **Permission:** `providers:read`
+
+        List the clinic's providers (its clinicians).
+
+        The clinic's directory of clinicians: the staff who can author clinical notes, excluding expired memberships. It is read only — there is no way to create, change or remove a provider through the API. Each provider carries the name, title, role, specialties, department, NPI and licences the clinic holds for them; email, phone and every other staff detail are never exposed, and there is no verified flag. `q` (at least 2 characters) matches the provider's name. The provider `id` is the same id the clinician pickers use. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 Practitioner resources.
       security:
         - ApiKey: []
       parameters:
@@ -10765,8 +11066,13 @@ paths:
       operationId: getProvider
       tags:
         - Providers
-      summary: Get one of the clinic's providers.
-      description: "A person who is not one of the clinic's providers, or whose membership has expired, answers the same 404 as one that does not exist. With `Accept: application/fhir+json` the answer is a FHIR R4 Practitioner."
+      summary: Get a provider
+      description: |-
+        **Permission:** `providers:read`
+
+        Get one of the clinic's providers.
+
+        A person who is not one of the clinic's providers, or whose membership has expired, answers the same 404 as one that does not exist. With `Accept: application/fhir+json` the answer is a FHIR R4 Practitioner.
       security:
         - ApiKey: []
       parameters:
@@ -10809,8 +11115,13 @@ paths:
       operationId: listCareProviders
       tags:
         - CareProviders
-      summary: List one patient's outside care providers.
-      description: "The clinicians outside the clinic that a patient names: their own doctor, a referring doctor, a specialist. `patient_id` is required. `type` filters to one kind. Every contact on the patient's record is listed, whoever added it; `source` says whether the clinic or an app did, and `editable` says whether this key's app may change or remove it. A restricted patient's contacts are never returned. Outside care providers are JSON only — there is no FHIR representation."
+      summary: List outside care providers
+      description: |-
+        **Permission:** `care_providers:read`
+
+        List one patient's outside care providers.
+
+        The clinicians outside the clinic that a patient names: their own doctor, a referring doctor, a specialist. `patient_id` is required. `type` filters to one kind. Every contact on the patient's record is listed, whoever added it; `source` says whether the clinic or an app did, and `editable` says whether this key's app may change or remove it. A restricted patient's contacts are never returned. Outside care providers are JSON only — there is no FHIR representation.
       security:
         - ApiKey: []
       parameters:
@@ -10892,11 +11203,17 @@ paths:
       operationId: createCareProvider
       tags:
         - CareProviders
-      summary: Add an outside care provider to a patient.
-      description: "Saved straight away and visible on the patient's record: answers 201 Created with the contact. If `is_primary` is true, the patient's other contacts of the same `type` stop being primary. The `Idempotency-Key` header is REQUIRED — a retry with the same key returns the original contact, never a second one. Contact notes cannot be sent. Only the contacts an app adds can later be changed or removed by that app."
+      summary: Add an outside care provider
+      description: |-
+        **Permission:** `care_providers:write`
+
+        Add an outside care provider to a patient.
+
+        Saved straight away and visible on the patient's record: answers 201 Created with the contact. If `is_primary` is true, the patient's other contacts of the same `type` stop being primary. The `Idempotency-Key` header is REQUIRED — a retry with the same key returns the original contact, never a second one. Contact notes cannot be sent. Only the contacts an app adds can later be changed or removed by that app.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -10941,8 +11258,13 @@ paths:
       operationId: getCareProvider
       tags:
         - CareProviders
-      summary: Get one outside care provider.
-      description: A restricted patient's contact answers the same 404 as one that does not exist.
+      summary: Get an outside care provider
+      description: |-
+        **Permission:** `care_providers:read`
+
+        Get one outside care provider.
+
+        A restricted patient's contact answers the same 404 as one that does not exist.
       security:
         - ApiKey: []
       parameters:
@@ -10984,11 +11306,17 @@ paths:
       operationId: updateCareProvider
       tags:
         - CareProviders
-      summary: Change an outside care provider your app added.
-      description: "Answers 200 with the contact. Only a contact an app added can be changed, and only by an app of the same owner; a contact the clinic added (`editable: false`) answers 409 `care_provider_clinic_managed`. The patient cannot be changed. The `Idempotency-Key` header is optional."
+      summary: Update an outside care provider
+      description: |-
+        **Permission:** `care_providers:write`
+
+        Change an outside care provider your app added.
+
+        Answers 200 with the contact. Only a contact an app added can be changed, and only by an app of the same owner; a contact the clinic added (`editable: false`) answers 409 `care_provider_clinic_managed`. The patient cannot be changed. The `Idempotency-Key` header is optional.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
         - name: clinic_id
           in: path
           required: true
@@ -11038,8 +11366,13 @@ paths:
       operationId: deleteCareProvider
       tags:
         - CareProviders
-      summary: Remove an outside care provider your app added.
-      description: "Answers 204 with no body. Only a contact an app added can be removed, and only by an app of the same owner; a contact the clinic added answers 409 `care_provider_clinic_managed`. A contact is a reference, not a clinical record, so it is deleted; the removal stays in the clinic's audit trail. There is no request body and no `Idempotency-Key`: removing a contact twice answers 404 the second time."
+      summary: Remove an outside care provider
+      description: |-
+        **Permission:** `care_providers:write`
+
+        Remove an outside care provider your app added.
+
+        Answers 204 with no body. Only a contact an app added can be removed, and only by an app of the same owner; a contact the clinic added answers 409 `care_provider_clinic_managed`. A contact is a reference, not a clinical record, so it is deleted; the removal stays in the clinic's audit trail. There is no request body and no `Idempotency-Key`: removing a contact twice answers 404 the second time.
       security:
         - ApiKey: []
       parameters:
@@ -11075,8 +11408,13 @@ paths:
       operationId: getSubmission
       tags:
         - Submissions
-      summary: Check what became of something this key submitted.
-      description: Answers `pending`, `confirmed` (with `result_record_id`), `rejected` (with `decision_reason`) or `withdrawn`. Only the key or organization that submitted it can read it; anyone else gets the same 404 as for a submission that does not exist. Needs the write scope of the kind of record that was submitted (`conditions:write` for a condition, `allergies:write` for an allergy, `medications:write` for a reported medicine).
+      summary: Get a submission
+      description: |-
+        **Permission:** `conditions:write`
+
+        Check what became of something this key submitted.
+
+        Answers `pending`, `confirmed` (with `result_record_id`), `rejected` (with `decision_reason`) or `withdrawn`. Only the key or organization that submitted it can read it; anyone else gets the same 404 as for a submission that does not exist. Needs the write scope of the kind of record that was submitted (`conditions:write` for a condition, `allergies:write` for an allergy, `medications:write` for a reported medicine).
       security:
         - ApiKey: []
       parameters:
@@ -11119,8 +11457,13 @@ paths:
       operationId: listPayers
       tags:
         - Payers
-      summary: List the insurance payers this clinic has enabled.
-      description: "Only the clinic's own active payers, the ones set up in Settings → Insurance, so a coverage can only point at a payer the clinic already works with. `q` matches the payer's name. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 Organization resources."
+      summary: List payers
+      description: |-
+        **Permission:** `payers:read`
+
+        List the insurance payers this clinic has enabled.
+
+        Only the clinic's own active payers, the ones set up in Settings → Insurance, so a coverage can only point at a payer the clinic already works with. `q` matches the payer's name. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 Organization resources.
       security:
         - ApiKey: []
       parameters:
@@ -11187,8 +11530,13 @@ paths:
       operationId: getPayer
       tags:
         - Payers
-      summary: Get one of the clinic's enabled payers.
-      description: "A payer the clinic has not enabled answers the same 404 as one that does not exist. With `Accept: application/fhir+json` the answer is a FHIR R4 Organization."
+      summary: Get a payer
+      description: |-
+        **Permission:** `payers:read`
+
+        Get one of the clinic's enabled payers.
+
+        A payer the clinic has not enabled answers the same 404 as one that does not exist. With `Accept: application/fhir+json` the answer is a FHIR R4 Organization.
       security:
         - ApiKey: []
       parameters:
@@ -11231,8 +11579,13 @@ paths:
       operationId: listCoverages
       tags:
         - Coverages
-      summary: List one patient's insurance coverages.
-      description: "`patient_id` is required. `verification_status` filters to coverages staff have `confirmed`, ones still `unconfirmed` (added through the API and waiting for staff), or `all` (default). A restricted patient's coverages are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 Coverage resources; an unconfirmed coverage reads as status `draft`."
+      summary: List coverages
+      description: |-
+        **Permission:** `coverage:read`
+
+        List one patient's insurance coverages.
+
+        `patient_id` is required. `verification_status` filters to coverages staff have `confirmed`, ones still `unconfirmed` (added through the API and waiting for staff), or `all` (default). A restricted patient's coverages are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 Coverage resources; an unconfirmed coverage reads as status `draft`.
       security:
         - ApiKey: []
       parameters:
@@ -11314,11 +11667,17 @@ paths:
       operationId: createCoverage
       tags:
         - Coverages
-      summary: Record a patient's insurance coverage.
-      description: "The coverage is saved and visible straight away, answers 201 Created with the coverage, and is `unconfirmed` with `coverage_active: false` until clinic staff confirm the payer match. The payer must be one the clinic has enabled (`payer_not_enabled` otherwise). A patient can hold one coverage per payer (`coverage_exists`). The `Idempotency-Key` header is REQUIRED — a retry with the same key returns the original coverage, never a second one. Send JSON; a FHIR Coverage body is refused."
+      summary: Create a coverage
+      description: |-
+        **Permission:** `coverage:write`
+
+        Record a patient's insurance coverage.
+
+        The coverage is saved and visible straight away, answers 201 Created with the coverage, and is `unconfirmed` with `coverage_active: false` until clinic staff confirm the payer match. The payer must be one the clinic has enabled (`payer_not_enabled` otherwise). A patient can hold one coverage per payer (`coverage_exists`). The `Idempotency-Key` header is REQUIRED — a retry with the same key returns the original coverage, never a second one. Send JSON; a FHIR Coverage body is refused.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -11363,8 +11722,13 @@ paths:
       operationId: getCoverage
       tags:
         - Coverages
-      summary: Get one insurance coverage.
-      description: "With `Accept: application/fhir+json` the answer is a FHIR R4 Coverage; an unconfirmed coverage reads as status `draft`."
+      summary: Get a coverage
+      description: |-
+        **Permission:** `coverage:read`
+
+        Get one insurance coverage.
+
+        With `Accept: application/fhir+json` the answer is a FHIR R4 Coverage; an unconfirmed coverage reads as status `draft`.
       security:
         - ApiKey: []
       parameters:
@@ -11406,11 +11770,17 @@ paths:
       operationId: updateCoverage
       tags:
         - Coverages
-      summary: Change a coverage, or end it.
-      description: "Answers 200 with the coverage. Changing who the coverage is for on a confirmed coverage sends it back to unconfirmed and inactive for staff to confirm again. `coverage_active: false` and `termination_date` end a coverage; `coverage_active: true` is refused (`activation_requires_staff`). The `Idempotency-Key` header is optional. Send JSON; a FHIR Coverage body is refused."
+      summary: Update or end a coverage
+      description: |-
+        **Permission:** `coverage:write`
+
+        Change a coverage, or end it.
+
+        Answers 200 with the coverage. Changing who the coverage is for on a confirmed coverage sends it back to unconfirmed and inactive for staff to confirm again. `coverage_active: false` and `termination_date` end a coverage; `coverage_active: true` is refused (`activation_requires_staff`). The `Idempotency-Key` header is optional. Send JSON; a FHIR Coverage body is refused.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
         - name: clinic_id
           in: path
           required: true
@@ -11461,8 +11831,13 @@ paths:
       operationId: listEncounters
       tags:
         - Encounters
-      summary: List one patient's visits.
-      description: "An encounter is a visit note: the visit's status, dates, reason for visit and clinician, with no clinical text (read the note through Notes; the ids are shared). `patient_id` is required. `status` filters to `draft` (not yet signed) or `completed`. Sensitive notes and a restricted patient's visits are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 Encounter resources."
+      summary: List encounters
+      description: |-
+        **Permission:** `encounters:read`
+
+        List one patient's visits.
+
+        An encounter is a visit note: the visit's status, dates, reason for visit and clinician, with no clinical text (read the note through Notes; the ids are shared). `patient_id` is required. `status` filters to `draft` (not yet signed) or `completed`. Sensitive notes and a restricted patient's visits are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 Encounter resources.
       security:
         - ApiKey: []
       parameters:
@@ -11542,11 +11917,17 @@ paths:
       operationId: createEncounter
       tags:
         - Encounters
-      summary: Open a visit as a draft note.
-      description: "Opens a visit for a patient as a DRAFT note a clinician completes, and answers 201 Created with the encounter (`status: draft`, `review_status: pending`). Nothing is ordered, prescribed, signed, locked or billed, and no note text can be sent; the draft appears in the clinic's consultation list for a clinician to finish. A restricted patient is a 404. The `Idempotency-Key` header is REQUIRED — a retry with the same key returns the original encounter, never a second draft. Send JSON; a FHIR Encounter body is refused."
+      summary: Open an encounter
+      description: |-
+        **Permission:** `encounters:write`
+
+        Open a visit as a draft note.
+
+        Opens a visit for a patient as a DRAFT note a clinician completes, and answers 201 Created with the encounter (`status: draft`, `review_status: pending`). Nothing is ordered, prescribed, signed, locked or billed, and no note text can be sent; the draft appears in the clinic's consultation list for a clinician to finish. A restricted patient is a 404. The `Idempotency-Key` header is REQUIRED — a retry with the same key returns the original encounter, never a second draft. Send JSON; a FHIR Encounter body is refused.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
         - name: clinic_id
           in: path
           required: true
@@ -11591,8 +11972,13 @@ paths:
       operationId: getEncounter
       tags:
         - Encounters
-      summary: Get one visit.
-      description: "The visit's details only — no clinical text. With `Accept: application/fhir+json` the answer is a FHIR R4 Encounter."
+      summary: Get an encounter
+      description: |-
+        **Permission:** `encounters:read`
+
+        Get one visit.
+
+        The visit's details only — no clinical text. With `Accept: application/fhir+json` the answer is a FHIR R4 Encounter.
       security:
         - ApiKey: []
       parameters:
@@ -11634,11 +12020,17 @@ paths:
       operationId: updateEncounter
       tags:
         - Encounters
-      summary: Change the details of a visit the API opened.
-      description: "Answers 200 with the encounter. Changes the visit's class, start, end or reason, and only on a draft the SAME key opened that no clinician has edited since: a signed, locked or clinician-edited visit is refused with 409 `note_not_editable`, and a visit opened by anyone else is a 404. It never changes note text and never signs, locks or finalizes. The `Idempotency-Key` header is optional. Send JSON; a FHIR Encounter body is refused."
+      summary: Update an encounter
+      description: |-
+        **Permission:** `encounters:write`
+
+        Change the details of a visit the API opened.
+
+        Answers 200 with the encounter. Changes the visit's class, start, end or reason, and only on a draft the SAME key opened that no clinician has edited since: a signed, locked or clinician-edited visit is refused with 409 `note_not_editable`, and a visit opened by anyone else is a 404. It never changes note text and never signs, locks or finalizes. The `Idempotency-Key` header is optional. Send JSON; a FHIR Encounter body is refused.
       security:
         - ApiKey: []
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyOptional"
         - name: clinic_id
           in: path
           required: true

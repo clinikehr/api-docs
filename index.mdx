@@ -1,16 +1,41 @@
 ---
 title: "ClinikEHR API"
-description: "Read a clinic's own inventory, or a network of connected clinics, over plain HTTPS with JSON."
+description: "Connect your software to ClinikEHR clinics: read and send records with simple HTTPS requests and JSON."
 icon: "/images/icons/compass.svg"
 ---
 
 import { Availability } from '/snippets/availability.mdx';
 
-The ClinikEHR API lets a system you build read data straight out of ClinikEHR — either one clinic's own workspace, using a key that clinic creates itself, or a network of clinics that have agreed to connect to your organization, using a [developer portal](https://developer.clinikehr.com) account.
+The ClinikEHR API lets software you build talk to ClinikEHR, the records system clinics, pharmacies and laboratories use. Your program sends an ordinary web request, and gets back plain JSON: a clinic's stock, a patient's allergies, an appointment, and more. You can also send information back for the clinic to review.
 
 <Info>
   **This API is under active development.** The sections below say, resource by resource, what you can call **today**. A page that describes something not yet available says so at the top, in its own banner — nothing on this site describes a defect as if it were a feature.
 </Info>
+
+## How it works
+
+<Steps>
+  <Step title="Get a key">
+    A key is a long secret string, like a password for your program. A clinic creates one for you, or you create your own in the [developer portal](https://developer.clinikehr.com). See [Getting a key](#getting-a-key).
+  </Step>
+  <Step title="Send it with every request">
+    Put the key in the `Authorization` header. That is the only sign-in this API has.
+  </Step>
+  <Step title="Read or send data">
+    Call an endpoint, such as `GET /v1/clinics/{clinic_id}/inventory/items`, and read the JSON that comes back.
+  </Step>
+</Steps>
+
+Here is a complete request. It asks the API which clinic or workspace your key belongs to:
+
+```bash
+curl https://api.clinikehr.com/v1/me \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+<Tip>
+  **New here? Start in the sandbox.** [Sign up for a developer portal account](https://developer.clinikehr.com) and you get a **test** key straight away. It reaches only a sandbox of invented data, so you can try the examples on this site without touching a real clinic. Then follow the [Quickstart](/quickstart).
+</Tip>
 
 ## Two ways to use this API
 
@@ -23,51 +48,55 @@ The ClinikEHR API lets a system you build read data straight out of ClinikEHR �
 
 Both kinds send the same `Authorization: Bearer` header, hit the same base URL, and get the same responses for the same resource — see [Authentication](/authentication).
 
+## What you can build
+
+<Columns cols={2}>
+  <Card title="Inventory and stock" icon="/images/icons/boxes-stacked.svg" href="/inventory">
+    Read a clinic's catalogue, stock and availability, and record stock changes.
+  </Card>
+  <Card title="Patient records" icon="/images/icons/shield-check.svg" href="/patients">
+    Patients, visits, notes, allergies, conditions and medicines, with the clinic's permission.
+  </Card>
+  <Card title="Referrals and outside care" icon="/images/icons/link.svg" href="/referrals">
+    Send referrals for a clinic to review, and read the ones it received.
+  </Card>
+  <Card title="Insurance" icon="/images/icons/credit-card.svg" href="/insurance">
+    The payers a clinic works with, and a patient's coverage.
+  </Card>
+  <Card title="Connections to clinics" icon="/images/icons/plug.svg" href="/connections">
+    Ask a clinic for access with a one-time code, and find listed pharmacies.
+  </Card>
+  <Card title="FHIR" icon="/images/icons/layers.svg" href="/fhir">
+    Read clinical records in the FHIR R4 standard.
+  </Card>
+</Columns>
+
+Every endpoint, with its request and response, is in the **API reference** tab.
+
+## Patient information
+
+Anything about a patient (records, appointments, notes, allergies, medicines, referrals, insurance and drug requests) needs more than a key, because it is protected health information. The clinic must agree, and the key must be allowed to carry patient-data permissions. [Getting access to patient data](/patient-data-access) lists exactly what is needed. A **test** key can try all of it in the sandbox today.
+
 ## What's available now
 
-- **Inventory**, for a clinic your key reaches: locations, catalogue items, availability bands, and exact stock — see [Inventory](/inventory) and [Stock bands](/stock-bands). Creating an item, receiving or adjusting stock, and recording a transfer are also live, with the same key — see [Retries and duplicates](/retries-and-idempotency) for the idempotency design every write uses.
-- **Insurance**: the payers a clinic has enabled, and a patient's coverage, which you can read and add (a coverage you add stays inactive until staff confirm it). It needs the same patient-data access as the records below. See [Insurance](/insurance).
-- **Allergies**: a patient's allergies and intolerances, which you can read and send for a clinician to review. They need the same patient-data access as the records below. See [Allergies](/allergies).
-- **Referrals**: the referrals a clinic has received for a patient, which you can read and send for the clinic to review. The clinic alone accepts, declines or books them. They need the same patient-data access as the records below. See [Referrals](/referrals).
-- **Medications**: the medicines a patient reports, which you can read and send for a clinician to review, and the prescriptions written for them, which are read-only. They need the same patient-data access as the records below. See [Medications](/medications).
-- **Automatic acceptance**: a clinic can choose to accept new allergies, conditions, reported medicines or referrals from your key or connection without review. The answer then already shows `review_status: "confirmed"` and `accepted_automatically: true`. See [Automatic acceptance](/automatic-acceptance).
-- **Providers**: the clinic's clinical staff directory (name, role, specialty, NPI and licence), which is read-only and holds no contact details. See [Providers](/providers).
-- **Outside care providers**: the doctors, referrers and specialists a patient names, which you can read and add, and change or remove when your app added them. They need the same patient-data access as the records below. See [Outside care providers](/care-providers).
-- **Encounters**: a patient's visits as the clinic documents them, which you can read, and open as a draft visit for a clinician to complete. No clinical text is returned, and nothing is ordered, billed or signed. They need the same patient-data access as the records below. See [Encounters](/encounters).
-- **Network search** — finding a listed pharmacy, and checking its availability band, without a direct connection to it yet — see [Connections](/connections#network-search).
-- **Connections** — an organization requesting access to a clinic by one-time code, and the clinic narrowing or revoking what it granted — see [Connections](/connections).
-- **Workspaces** — signing up for a developer portal account, verifying it, and using your sandbox with a test key before anything is live.
-- Looking up which clinic or workspace a key belongs to, and confirming the key itself is valid (`GET /v1/me`).
-- **Your sandbox** — invented inventory, pharmacies, patients, notes, appointments and medicine codes, reachable with a test key, with a request you can paste for each on the **Sandbox** page of the [developer portal](https://developer.clinikehr.com).
-
-## Patient records, appointments, clinical notes and drug requests
-
-These routes exist and are live, but reaching them needs more than a key — every one of them carries a
-patient-data (PHI) permission, and a key can only be minted with one once:
-
-- your clinic's own key: the clinic's plan is Team (or Business, on the Pharmacy and Diagnostics
-  editions) or Enterprise, the clinic has bought the [API add-on](https://help.clinikehr.com/platform/settings/api-access#the-api-add-on-reach-your-own-patient-records)
-  (or is on an Enterprise contract, which includes it) **and** the clinic owner has accepted the
-  current API data agreement;
-- an organization's key: your workspace is on a paid plan whose contract with us includes patient
-  data, your organization has been **approved for patient data** (an application on **Settings →
-  Verification**, decided by a reviewer, covering the kinds of data you are approved for), you have
-  accepted the current data-protection addendum, and the clinic you're connecting to has approved that
-  scope for your connection.
-
-CRM contacts and activities are reached the same way. Their routes exist, under
-`/v1/clinics/{clinic_id}/crm/`, and their permissions are patient-data permissions, so the add-on, the
-agreement and (for an organization) the approval above all apply. Pipelines and stages are reference data
-with no patient in them.
-
-Until both conditions hold, a request for one of these scopes is refused the same way a missing key
-would be — see [Permissions](/permissions) for the exact scopes (`patients:read`/`write`,
-`appointments:read`/`write`, `notes:read`/`write`) and [Drug requests](/drug-requests) for that
-family's own page.
-
-### Try them in the sandbox first
-
-A **test** key can hold the patient-data permissions. It reaches only your workspace's own sandbox, which holds invented patients, notes and appointments (all named "SANDBOX"), so you can build against these routes today without a patient-data agreement. Nothing real is ever involved, and a test key can never reach a real clinic. The permissions in the paragraph above apply to a **live** key.
+<AccordionGroup>
+  <Accordion title="Everything you can call today, resource by resource">
+    - **Inventory**, for a clinic your key reaches: locations, catalogue items, availability bands, and exact stock — see [Inventory](/inventory) and [Stock bands](/stock-bands). Creating an item, receiving or adjusting stock, and recording a transfer are also live, with the same key — see [Retries and duplicates](/retries-and-idempotency) for the idempotency design every write uses.
+    - **Insurance**: the payers a clinic has enabled, and a patient's coverage, which you can read and add (a coverage you add stays inactive until staff confirm it). It needs the same patient-data access as the records below. See [Insurance](/insurance).
+    - **Allergies**: a patient's allergies and intolerances, which you can read and send for a clinician to review. They need the same patient-data access as the records below. See [Allergies](/allergies).
+    - **Referrals**: the referrals a clinic has received for a patient, which you can read and send for the clinic to review. The clinic alone accepts, declines or books them. They need the same patient-data access as the records below. See [Referrals](/referrals).
+    - **Medications**: the medicines a patient reports, which you can read and send for a clinician to review, and the prescriptions written for them, which are read-only. They need the same patient-data access as the records below. See [Medications](/medications).
+    - **Automatic acceptance**: a clinic can choose to accept new allergies, conditions, reported medicines or referrals from your key or connection without review. The answer then already shows `review_status: "confirmed"` and `accepted_automatically: true`. See [Automatic acceptance](/automatic-acceptance).
+    - **Providers**: the clinic's clinical staff directory (name, role, specialty, NPI and licence), which is read-only and holds no contact details. See [Providers](/providers).
+    - **Outside care providers**: the doctors, referrers and specialists a patient names, which you can read and add, and change or remove when your app added them. They need the same patient-data access as the records below. See [Outside care providers](/care-providers).
+    - **Encounters**: a patient's visits as the clinic documents them, which you can read, and open as a draft visit for a clinician to complete. No clinical text is returned, and nothing is ordered, billed or signed. They need the same patient-data access as the records below. See [Encounters](/encounters).
+    - **Network search** — finding a listed pharmacy, and checking its availability band, without a direct connection to it yet — see [Connections](/connections#network-search).
+    - **Connections** — an organization requesting access to a clinic by one-time code, and the clinic narrowing or revoking what it granted — see [Connections](/connections).
+    - **Workspaces** — signing up for a developer portal account, verifying it, and using your sandbox with a test key before anything is live.
+    - Looking up which clinic or workspace a key belongs to, and confirming the key itself is valid (`GET /v1/me`).
+    - **Your sandbox** — invented inventory, pharmacies, patients, notes, appointments and medicine codes, reachable with a test key, with a request you can paste for each on the **Sandbox** page of the [developer portal](https://developer.clinikehr.com).
+  </Accordion>
+</AccordionGroup>
 
 ## What isn't available yet
 
@@ -75,6 +104,17 @@ If your integration needs any of this, it isn't ready to build against — check
 
 - **A self-serve checkout for a workspace's paid plan.** Moving off Sandbox is a request to us today — see [Plans and pricing](/plans-and-pricing).
 - **OAuth, or any authentication method other than a bearer key.**
+
+## Words you'll see
+
+| Word | What it means |
+| --- | --- |
+| **Key** | The secret your program sends with every request. `ehr_live_` keys reach real clinics; `ehr_test_` keys reach only your sandbox. |
+| **Sandbox** | A practice clinic full of invented data, for trying things safely. |
+| **Workspace** | Your organization's account in the [developer portal](https://developer.clinikehr.com). |
+| **Connection** | A clinic's permission for your organization to reach some of its records. The clinic can narrow or remove it at any time. |
+| **Permission** (scope) | What a key may do, such as `inventory.items:read`. A request needs the permission its endpoint names. |
+| **Clinic ID** | The id in the URL that says which clinic a request is about. With a clinic's own key, `GET /v1/me` returns it; an organization finds it on its [connections](/connections). |
 
 ## Base URL
 
@@ -96,8 +136,8 @@ Every endpoint lives under this base URL. See [Versioning](/versioning) for how 
   <Card title="Permissions" icon="/images/icons/shield-check.svg" href="/permissions">
     What a key can be given access to, and how that's enforced.
   </Card>
-  <Card title="Inventory" icon="/images/icons/boxes-stacked.svg" href="/inventory">
-    The endpoints available today.
+  <Card title="API reference" icon="/images/icons/code.svg" href="/api-reference/overview">
+    Every endpoint, with its request, response and permission.
   </Card>
   <Card title="SDKs and Postman" icon="/images/icons/code.svg" href="/sdks-and-postman">
     Client libraries and a ready-made request collection.

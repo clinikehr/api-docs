@@ -1,0 +1,209 @@
+---
+title: "Dispensing history and flags"
+description: "Read what a pharmacy has dispensed to a linked patient, and the refill and duplicate-dispensing flags its pharmacists recorded. Read-only, and never a price."
+icon: "/images/icons/prescription-bottle-medical.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+When a pharmacy hands out medicine, it keeps a record of each item: what it was, how many, and for how long it should last.
+The pharmacy also runs checks at the till. If someone collects a refill much earlier than expected, or the same medicine
+twice, the system raises a **flag**, and the pharmacist records whether they went ahead and why.
+
+These two endpoints let your system read that, for the patients your key is **linked** to:
+
+- the **dispensing history** of one patient: medicine, quantity, days supply, date;
+- the **flags** a pharmacist recorded for your linked patients in a date window.
+
+Both are **read-only**. They never show a price, never show another customer of the pharmacy, and never name a member of
+the pharmacy's staff.
+
+<Availability keyKind={['clinic', 'organization']} plan="Enterprise subscription for the clinic" scopes="dispensing:read" note="Dispensing information is patient information. A test key reaches only your sandbox." />
+
+## Who can use it
+
+Both endpoints need the **`dispensing:read`** permission. It is a **patient-data permission**, so a live key also needs:
+
+- for a **clinic's own key**: the clinic's API add-on and the accepted API data agreement; or
+- for an **organization's key**: patient-data approval for the **Dispensing history** kind, a data-protection addendum
+  your workspace has accepted, and a [connection](/connections) the pharmacy has approved for this scope.
+
+The pharmacy's subscription must be Enterprise for this permission. See [Patient information access](/patient-data-access),
+[Permissions](/permissions) and [Authentication](/authentication). A missing requirement answers `403` with a `code` that
+names it. See [Errors](/errors).
+
+**Linked patients only.** An organization's key sees only patients that are **linked** to its connection. A patient who is
+not linked, a patient the clinic has restricted, and a patient who does not exist all answer `404 not_found`. A clinic's own
+key reads its own customers' history under the same permission.
+
+**Try it in the sandbox first.** A **test** key reaches only your workspace's sandbox. It returns two invented dispensed
+items for any patient id you ask about, and one invented flag. Nothing real is involved.
+
+| Operation | Endpoint |
+| --- | --- |
+| [Read a patient's dispensing history](#read-a-patients-dispensing-history) | `GET /v1/clinics/{clinic_id}/dispensing/history?patient_id=…` |
+| [List dispensing flags](#list-dispensing-flags) | `GET /v1/clinics/{clinic_id}/dispensing/flags` |
+
+Every example uses a test key and a placeholder clinic. Replace `YOUR_CLINIC_ID` and the ids with your own.
+
+## The medicine object
+
+Both endpoints describe a medicine the same way:
+
+| Field | Meaning |
+| --- | --- |
+| `name` | The product name as the pharmacy lists it, or `null`. |
+| `generic_name` | The generic name, or `null`. |
+| `brand_name` | The brand name, or `null`. |
+| `identifiers` | A list of codes that identify the product, each with a `system` and a `value`. The systems you may see are `nafdac`, `ndc` and `gtin`. The list is empty when the pharmacy holds none. |
+
+## Read a patient's dispensing history
+
+Returns what the pharmacy dispensed to one patient, one line for each item sold.
+
+`GET /v1/clinics/{clinic_id}/dispensing/history`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The pharmacy's clinic. |
+| `patient_id` | query, uuid | Yes | The patient. For an organization key, the patient must be linked to your connection. |
+| `limit` | query, integer 1 to 100 | No | Page size. Default 25. |
+| `starting_after` | query, string | No | The `next_cursor` from the previous page. See [Pagination](/pagination). |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/dispensing/history?patient_id=PATIENT_ID&limit=25" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "4e8c2a10-1111-4a2b-9c3d-0123456789ab",
+      "medicine": {
+        "name": "Example Amoxicillin 500mg",
+        "generic_name": "amoxicillin",
+        "brand_name": null,
+        "identifiers": [{ "system": "nafdac", "value": "A4-0000-EXAMPLE" }]
+      },
+      "quantity": 21,
+      "days_supply": 7,
+      "dispensed_at": "2026-09-25T10:15:00Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The id of this dispensed line. |
+| `medicine` | The medicine, described above. |
+| `quantity` | How many units were dispensed, or `null`. |
+| `days_supply` | How many days the supply should last, or `null` when the pharmacy did not record it. |
+| `dispensed_at` | When it was dispensed, or `null`. |
+
+The history is ordered by `id`, not by date. If you want it newest first, sort by `dispensed_at` yourself after reading all
+the pages.
+
+## List dispensing flags
+
+Returns the refill and duplicate-dispensing flags the pharmacy recorded for patients your key is linked to. Each flag says
+which check fired, the evidence, and the reason the pharmacist gave.
+
+`GET /v1/clinics/{clinic_id}/dispensing/flags`
+
+| Parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `clinic_id` | path, uuid | Yes | The pharmacy's clinic. |
+| `since` | query, RFC 3339 timestamp | No | Only flags recorded at or after this time. |
+| `until` | query, RFC 3339 timestamp | No | Only flags recorded at or before this time. |
+| `limit` | query, integer 1 to 100 | No | Page size. Default 25. |
+| `starting_after` | query, string | No | The `next_cursor` from the previous page. See [Pagination](/pagination). |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/dispensing/flags?since=2026-09-01T00:00:00Z&until=2026-10-01T00:00:00Z" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "5f9d3b21-2222-4b3c-8d4e-123456789abc",
+      "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+      "medicine": {
+        "name": "Example Amoxicillin 500mg",
+        "generic_name": "amoxicillin",
+        "brand_name": null,
+        "identifiers": [{ "system": "nafdac", "value": "A4-0000-EXAMPLE" }]
+      },
+      "days_supply": 7,
+      "date": "2026-10-02T14:00:00Z",
+      "check_state": "shown_acknowledged",
+      "flags": ["refill_too_soon"],
+      "evidence": {
+        "previous_fill_at": "2026-09-25T10:15:00Z",
+        "expected_next_fill_at": "2026-10-09T10:15:00Z"
+      },
+      "reason": { "code": "travelling", "text": "Patient travelling, needs an early refill." }
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The id of the flag. |
+| `patient_id` | The linked patient the flag is about. |
+| `medicine` | The medicine, described above. |
+| `days_supply` | Days of supply on the sale, or `null`. |
+| `date` | When the flag was recorded. |
+| `check_state` | What happened with the warning at the till: `clear`, `shown_acknowledged` (the pharmacist saw it and went on), `not_shown_pending` or `not_shown_offline`. May be `null`. |
+| `flags` | Short words naming the checks that fired. Treat them as text and expect new words to appear over time. |
+| `evidence` | An object with the facts behind the flag, such as an earlier fill date. Its keys depend on the check. |
+| `reason` | The pharmacist's reason. `code` is `lost`, `damaged`, `dose_changed`, `travelling`, `prescriber_instruction` or `other` (or `null`), and `text` is a free-text note (or `null`). |
+
+**Which flags you see.** A flag appears only when a check actually found something. A sale where no check was run (for
+example, when the person at the till was not identified) is **not** a finding and is not returned. A walk-in with no patient
+record is never returned, and an organization's key sees flags only for its linked patients. Flags are ordered by `id`, so
+read every page and sort by `date` yourself if you need them in date order.
+
+## Things to know
+
+**Refusals you may see**
+
+| Code | Status | Means |
+| --- | --- | --- |
+| `invalid_request` | `400` | `patient_id` is missing or not a uuid, `since` or `until` is not an RFC 3339 timestamp, `limit` is out of range, or `starting_after` is not a valid cursor. |
+| `not_found` | `404` | The patient does not exist, is restricted, or (for an organization key) is not linked to your connection. The cases are never told apart. |
+| `scope_missing`, `plan_required`, `agreement_required`, `approval_required`, `kind_not_approved` and the other permission codes | `403` | See [Errors](/errors) and [Patient information access](/patient-data-access). |
+| `rate_limited` | `429` | Too many requests. See [Rate limits](/rate-limits). |
+
+**What is never returned.** A price, a margin, any other customer of the pharmacy, the name of any staff member, or any
+sale of a person the pharmacy could not identify. Each read is recorded in the pharmacy's access log.
+
+**Pagination.** Both endpoints are paginated with `limit` and `starting_after`. See [Pagination](/pagination).
+
+**No writes, no idempotency keys.** There is nothing to create, so there is nothing to retry safely or unsafely: repeat a
+read as often as you like within your [rate limit](/rate-limits).
+
+**FHIR.** These routes return JSON only.
+
+**Related.** Sending a pharmacy a request for medicines, and following it until it is dispensed, is a different resource.
+See [Drug requests](/drug-requests). A request reaches `dispensed` at the till, and the item then appears in the dispensing
+history here.
+
+## Common tasks
+
+**Show a patient what their pharmacy has dispensed.** `GET …/dispensing/history?patient_id=…`, following `next_cursor` until
+`has_more` is `false`, then sort by `dispensed_at`.
+
+**Check for early refills last month.** `GET …/dispensing/flags?since=…&until=…`, then show each flag with its `reason.text`
+so a reviewer sees what the pharmacist decided.
+
+**Work out whether a repeat is due.** Read the history, take the latest `dispensed_at` for a medicine and add its
+`days_supply`. Treat a `null` `days_supply` as unknown, not as zero.

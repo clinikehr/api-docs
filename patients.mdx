@@ -1,0 +1,576 @@
+---
+title: "Patients"
+description: "Find, create, update and archive the people a clinic cares for, and bring in a whole list at once. Every route, with examples."
+icon: "/images/icons/shield-check.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+<Availability keyKind={['clinic', 'organization']} scopes="patients:read · patients:write" note="Patient information: also needs the API add-on and the accepted agreement. See Patient data access." />
+
+A **patient** is a person a clinic keeps a record for: their name, how to reach them, a few details about their
+health and a few about how the clinic bills them. Almost everything else a clinic stores (visits, allergies,
+appointments, invoices) hangs off a patient, so this is usually the first resource an integration touches.
+
+If you have never worked with health records before, three ideas will save you time:
+
+- **A patient has one `id` at each clinic.** Every other route that asks for a `patient_id` wants this value. It is not the clinic's medical record number (the `mrn`), which is a separate, human-friendly label.
+- **Nothing is ever deleted.** You can create, change and **archive** a patient. There is no delete route.
+- **Duplicates are flagged, not blocked.** Real front desks create the same person twice. We create the record and tell staff to review it, rather than guess.
+
+## Who can use it
+
+This is **patient information**, so it has more conditions than most routes. Read
+[Patient data access](/patient-data-access) first: it explains the API add-on, the agreement, and for an
+organization the approval for patient data. Then [Permissions](/permissions) for how a key gets its scopes.
+
+| Permission | Lets your key |
+| --- | --- |
+| `patients:read` | List, read and search patients, and read the possible-duplicate list. |
+| `patients:write` | Create, change and archive patients, and run and read patient imports (reading an import also needs this permission). |
+
+A **test key** (`ehr_test_…`) reaches only your workspace's sandbox, which holds invented patients, so you can try
+every request on this page without touching a real chart. See [Authentication](/authentication).
+
+A patient the clinic has restricted never appears in a list or a search. Asking for one directly, or one in another
+clinic, answers `404` with `code: "not_found"`: absent and not-permitted look identical on purpose. See [Errors](/errors).
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List patients | `GET /v1/clinics/{clinic_id}/patients` | `patients:read` |
+| Create a patient | `POST /v1/clinics/{clinic_id}/patients` | `patients:write` |
+| Read one patient | `GET /v1/clinics/{clinic_id}/patients/{patient_id}` | `patients:read` |
+| Change a patient | `PATCH /v1/clinics/{clinic_id}/patients/{patient_id}` | `patients:write` |
+| Archive a patient | `POST /v1/clinics/{clinic_id}/patients/{patient_id}/archive` | `patients:write` |
+| See possible duplicates | `GET /v1/clinics/{clinic_id}/patients/duplicate_flags` | `patients:read` |
+| Search by identifiers | `POST /v1/clinics/{clinic_id}/patients/search` | `patients:read` |
+| Import a list of patients | `POST /v1/clinics/{clinic_id}/patient-imports` | `patients:write` |
+| List import jobs | `GET /v1/clinics/{clinic_id}/patient-imports` | `patients:write` |
+| Read one import job | `GET /v1/clinics/{clinic_id}/patient-imports/{job_id}` | `patients:write` |
+| Import only the rows that passed | `POST /v1/clinics/{clinic_id}/patient-imports/{job_id}/run-valid` | `patients:write` |
+
+## What a patient looks like
+
+```json
+{
+  "id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "mrn": "MRN-000123",
+  "first_name": "Ada",
+  "last_name": "Example",
+  "preferred_name": null,
+  "date_of_birth": "1990-04-12",
+  "gender": "female",
+  "client_type": "adult",
+  "client_status": "active",
+  "email": "ada.example@example.com",
+  "phone": "+15555550100",
+  "city": "Exampleville",
+  "country": "US",
+  "status": "active",
+  "is_vip": false,
+  "is_waitlist": false,
+  "emails": [{ "email": "ada.example@example.com", "type": "personal", "permission": "email_ok", "is_primary": true }],
+  "phones": [{ "phone_number": "+15555550100", "type": "mobile", "permission": "text_ok", "is_primary": true }],
+  "guardians": [],
+  "allergies": [],
+  "current_medications": [],
+  "chronic_conditions": [],
+  "has_profile_image": false,
+  "created_at": "2026-10-01T09:00:00Z",
+  "updated_at": "2026-10-01T09:00:00Z"
+}
+```
+
+Only `id`, `first_name` and `last_name` are always present. Everything else can be `null`. The fields you will use most:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | uuid | The patient's id. Use it everywhere another route asks for `patient_id`. |
+| `mrn` | string or null | The clinic's own record number. Assigned by the clinic. You cannot set it. |
+| `first_name`, `last_name` | string | Always present. |
+| `middle_name`, `preferred_name`, `title`, `suffix` | string or null | Name parts. |
+| `date_of_birth` | date or null | `YYYY-MM-DD`. |
+| `gender` | `male`, `female`, `other` or null | |
+| `marital_status` | `single`, `married`, `divorced`, `widowed`, `separated` or null | |
+| `client_type` | `adult`, `minor`, `couple` or null | You can create or change a patient to `adult` or `minor`. A `couple` record is one the clinic made itself. |
+| `client_status` | string or null | Read-only. Becomes `archived` when the patient is archived. |
+| `status` | `active`, `prospect`, `inactive`, `blocked` or null | The clinic's own status for this patient. You can set it. |
+| `email`, `phone`, `secondary_phone` | string or null | The main contact details. |
+| `emails`, `phones` | arrays | Every email and phone, with `type`, `permission` and `is_primary`. A write **replaces the whole set**. |
+| `guardians` | array | For a minor. A write replaces the whole set. |
+| `country`, `nationality`, `occupation`, `residential_address`, `work_address`, `city`, `state`, `zip`, `national_id`, `preferred_language` | string or null | Contact and background details. |
+| `next_of_kin` | object | `name`, `phone`, `address`. |
+| `employment` | object | `status`, `company`, `role`. |
+| `billing` | object | `individual_type` and `group_type`, each `self_pay`, `insurance` or null. |
+| `blood_type`, `genotype` | enums or null | `blood_type` is one of `O+`, `O-`, `A+`, `A-`, `B+`, `B-`, `AB+`, `AB-`. `genotype` is `AA`, `AS`, `SS`, `AC` or `SC`. |
+| `medical_history`, `family_history`, `smoking_status`, `alcohol_use`, `recreational_drug_use`, `physical_activity`, `living_arrangement` | string or null | Free-text background. |
+| `is_vip`, `is_waitlist`, `is_dependent` | boolean | Clinic flags. |
+| `primary_location_id`, `referral_source_id`, `sponsor_id` | uuid or null | Links to a clinic location, a referral source and a paying sponsor (another patient of the same clinic). |
+| `allergies`, `current_medications`, `chronic_conditions` | arrays of strings | **Read-only here.** See below. |
+| `insurance`, `pharmacies`, `care_providers`, `notification_settings`, `couple`, `portal_access_enabled`, `admission_status`, `has_profile_image`, `profile_image_path` | various | Read-only. The picture itself is not available through the API. |
+| `created_at`, `updated_at` | date-time | |
+
+**Allergies, current medications and chronic conditions are returned when you read a patient, but you cannot write
+them here.** They are the clinic's reviewed clinical record. Send allergies with [Allergies](/allergies) and
+conditions with [Conditions](/conditions); a clinician confirms each before it reaches the chart. Sending one of these fields on a create, an update or an import is
+refused, naming the field.
+
+## List patients
+
+Returns the patients your key may see, a page at a time. There is deliberately **no search by name**: a name search
+over an API would be a directory of people. Find a specific person with the exact filters below, or with
+[Search by identifiers](#search-by-identifiers).
+
+`GET /v1/clinics/{clinic_id}/patients`
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patients?limit=25" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `limit` | integer, 1 to 100 | No | Page size. Default 25. |
+| `starting_after` | string | No | The `next_cursor` from the previous page. See [Pagination](/pagination). |
+| `updated_since` | date-time | No | Only patients changed since then. Good for keeping a copy in step. |
+| `email` | string | No | Exact match on the patient's email. |
+| `phone` | string | No | Exact match on the patient's phone. |
+| `mrn` | string | No | Exact match on the clinic's record number. |
+
+```json
+{
+  "data": [
+    { "id": "9d2e7a10-2222-4b3c-8d4e-123456789abc", "mrn": "MRN-000123", "first_name": "Ada", "last_name": "Example", "status": "active" }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+(Each item is a full patient, shortened here.)
+
+## Create a patient
+
+Adds a patient. **Send an `Idempotency-Key`** header, or the request is refused. See
+[Retries and duplicates](/retries-and-idempotency).
+
+`POST /v1/clinics/{clinic_id}/patients`
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patients" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "first_name": "Ada",
+        "last_name": "Example",
+        "client_type": "adult",
+        "date_of_birth": "1990-04-12",
+        "gender": "female",
+        "email": "ada.example@example.com",
+        "phone": "+15555550100"
+      }'
+```
+
+| Body field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `first_name`, `last_name` | string | **Yes** | Cannot be empty. |
+| `client_type` | `adult` or `minor` | **Yes** | A minor can carry `guardians`. |
+| `date_of_birth` | date | No | `YYYY-MM-DD`, not in the future. |
+| `gender` | `male`, `female`, `other` | No | |
+| `marital_status` | `single`, `married`, `divorced`, `widowed`, `separated` | No | |
+| `middle_name`, `preferred_name`, `title`, `suffix` | string | No | |
+| `email`, `phone`, `secondary_phone` | string | No | If you also send `emails` or `phones`, these must match the entry marked `is_primary`. |
+| `emails` | array | No | Each: `email` (required), `type`, `permission` (`email_ok` or `no_email`), `is_primary`. |
+| `phones` | array | No | Each: `phone_number` (required), `type`, `permission` (`text_voicemail_ok`, `text_ok`, `voicemail_ok`, `no_call`), `is_primary`. |
+| `guardians` | array | No | Only when `client_type` is `minor`. Each names an existing patient with `guardian_id`, **or** gives `first_name` and `last_name`, never both. Also `email`, `phone`, `relationship` (`parent`, `grandparent`, `sibling`, `aunt_uncle`, `legal_guardian`, `foster_parent`, `step_parent`, `other`), `is_responsible_for_billing`, `is_primary`. |
+| `country`, `nationality`, `occupation`, `residential_address`, `work_address`, `city`, `state`, `zip`, `national_id`, `preferred_language`, `referred_by` | string | No | |
+| `referral_source_id`, `sponsor_id`, `primary_location_id` | uuid | No | Must belong to the same clinic (`sponsor_id` must be one of its patients, `primary_location_id` an active location). |
+| `next_of_kin`, `employment`, `billing` | object | No | Shapes as in the table above. |
+| `blood_type`, `genotype` | enum | No | Values as above. |
+| `medical_history`, `family_history`, `smoking_status`, `alcohol_use`, `recreational_drug_use`, `physical_activity`, `living_arrangement` | string | No | |
+| `status` | `active`, `prospect`, `inactive`, `blocked` | No | |
+| `is_vip`, `is_waitlist`, `is_dependent` | boolean | No | |
+| `run_automations` | boolean | No | Default `false`. When `false`, the clinic's automations that react to a new patient do not run for this create. |
+
+A field that is not listed is refused with `invalid_request`, naming it. That includes every read-only field
+(`mrn`, `client_status`, `insurance`, `pharmacies`, `care_providers`, `couple`, `portal_access_enabled`,
+`admission_status`, `profile_image`), and `allergies`, `current_medications` and `chronic_conditions`.
+`notification_settings` is refused with its own code, `notification_settings_not_writable`: it is the patient's own consent record.
+
+```json
+{
+  "data": {
+    "id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+    "first_name": "Ada",
+    "last_name": "Example",
+    "client_type": "adult",
+    "date_of_birth": "1990-04-12",
+    "gender": "female",
+    "email": "ada.example@example.com",
+    "phone": "+15555550100",
+    "status": "active",
+    "duplicate_candidates": [
+      { "id": "5b0c6f0e-1111-4a2b-9c3d-0123456789ab", "mrn": "MRN-000099", "first_name": "Ada", "last_name": "Example", "similarity": 0.92 }
+    ]
+  }
+}
+```
+
+`duplicate_candidates` appears only when the clinic already has someone who looks like a match. The patient is
+**created anyway**. Show the match to a person, do not try to merge. Retrying with the same key returns the same patient and does not create a second one.
+
+## Read one patient
+
+`GET /v1/clinics/{clinic_id}/patients/{patient_id}`
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patients/9d2e7a10-2222-4b3c-8d4e-123456789abc" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Path parameter | Meaning |
+| --- | --- |
+| `clinic_id` | The clinic. |
+| `patient_id` | The patient's `id`. |
+
+```json
+{
+  "data": {
+    "id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+    "first_name": "Ada",
+    "last_name": "Example",
+    "date_of_birth": "1990-04-12",
+    "status": "active",
+    "client_status": "active"
+  }
+}
+```
+
+## Change a patient
+
+Send **only what changes**. A field you leave out is left alone. A field you send as JSON `null` is cleared, where the
+field can be empty (`first_name` and `last_name` can never be cleared; that is refused naming the field). `emails`,
+`phones` and `guardians` **replace the whole set** when present, and `next_of_kin`, `employment` and `billing` replace as a whole.
+
+`PATCH /v1/clinics/{clinic_id}/patients/{patient_id}`
+
+```bash
+curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patients/9d2e7a10-2222-4b3c-8d4e-123456789abc" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "preferred_name": "Ada", "phone": "+15555550111", "occupation": null }'
+```
+
+The body accepts the same fields as a create (all optional), except `run_automations`. Differences: `client_type` can be
+`adult` or `minor` but never `couple`, and `mrn`, `client_status` and the other read-only fields are refused. An update
+needs no `Idempotency-Key`: sending the same change twice leaves the same result.
+
+```json
+{
+  "data": {
+    "id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+    "first_name": "Ada",
+    "last_name": "Example",
+    "preferred_name": "Ada",
+    "phone": "+15555550111",
+    "occupation": null,
+    "updated_at": "2026-10-05T10:30:00Z"
+  }
+}
+```
+
+## Archive a patient
+
+Archiving marks the patient as no longer current, the same as the clinic's own archive button. **It never removes a
+record.** Archiving someone who is already archived succeeds again, so it is safe to retry. There is no request body.
+
+`POST /v1/clinics/{clinic_id}/patients/{patient_id}/archive`
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patients/9d2e7a10-2222-4b3c-8d4e-123456789abc/archive" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": {
+    "id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+    "first_name": "Ada",
+    "last_name": "Example",
+    "client_status": "archived"
+  }
+}
+```
+
+## See possible duplicates
+
+When a create or an import finds a close match, the clinic's staff are shown the pair. This route lists those pairs.
+It returns **ids and a similarity score only, never a name**. Read each side with [Read one patient](#read-one-patient).
+
+`GET /v1/clinics/{clinic_id}/patients/duplicate_flags`
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patients/duplicate_flags?status=open" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `status` | `open`, `dismissed`, `merged` | No | Only flags in that state. |
+| `limit` | integer, 1 to 100 | No | Default 25. |
+| `starting_after` | string | No | The previous `next_cursor`. |
+
+```json
+{
+  "data": [
+    {
+      "id": "0a1b2c3d-4444-4e5f-8a6b-7c8d9e0f1a2b",
+      "clinic_patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+      "candidate_clinic_patient_id": "5b0c6f0e-1111-4a2b-9c3d-0123456789ab",
+      "similarity": 0.92,
+      "source": "api",
+      "status": "open",
+      "decided_by_staff_id": null,
+      "decided_at": null,
+      "created_at": "2026-10-05T10:00:00Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+The API cannot merge two patients. Staff decide that in the product. **A test key always sees an empty list here.**
+
+## Search by identifiers
+
+Looks for an exact match on **two or more different identifiers**. Use it when you hold an email and a phone number
+(or a record number) and want to know whether the person is already a patient. The identifiers go in the body, never in a URL.
+
+`POST /v1/clinics/{clinic_id}/patients/search`
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patients/search" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "identifiers": [
+          { "system": "email", "value": "ada.example@example.com" },
+          { "system": "phone", "value": "+15555550100" }
+        ]
+      }'
+```
+
+| Body field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `identifiers` | array | **Yes** | At least two entries, of **different** kinds. |
+| `identifiers[].system` | `email`, `phone` or `mrn` | **Yes** | The kind of identifier. |
+| `identifiers[].value` | string | **Yes** | Matched exactly. |
+
+At most five patients come back. There is no name-only or partial match: that is what stops this route being used to
+walk through the clinic's patients one field at a time.
+
+```json
+{
+  "data": [
+    { "id": "9d2e7a10-2222-4b3c-8d4e-123456789abc", "first_name": "Ada", "last_name": "Example", "email": "ada.example@example.com" }
+  ]
+}
+```
+
+**An empty `data` list means "no match" or "not allowed to see the match", and the two are never told apart.**
+It is `200`, not `404`.
+
+## Import a list of patients
+
+Brings in up to **100 patients** at once from another system. Only a **clinic's own key** may import; an organization
+connected to the clinic may not (it receives `not_found`). The call needs `patients:write`, the API add-on and the accepted agreement.
+
+`POST /v1/clinics/{clinic_id}/patient-imports`
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patient-imports" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "format": "json_array",
+        "data": [
+          { "first_name": "Ada", "last_name": "Example", "client_type": "adult", "date_of_birth": "1990-04-12" },
+          { "first_name": "Ben", "last_name": "Sample", "client_type": "adult" }
+        ]
+      }'
+```
+
+| Body field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `format` | `json_array`, `ndjson` or `fhir_bundle` | **Yes** | How `data` is written. |
+| `data` | array, string or object | **Yes** | `json_array`: an array of patient objects shaped like a create. `ndjson`: one string, one patient object per line. `fhir_bundle`: a FHIR Bundle (its Patient entries are used, other resource types are ignored). |
+
+**The whole file is checked before anything is written.** If every row is valid, the import runs at once and the answer
+is the finished job. If any row fails, **nothing is written** and the job comes back as `needs_review` with a
+`row_errors` list (row number, field, reason; never the value). Fix the file and send it again, or choose to import
+just the rows that passed (see below). No `Idempotency-Key` is needed: a file with exactly the same content that was already imported is refused with
+`already_imported`, so retrying a timed-out call is safe. An import never contacts a patient and never starts an
+automation. A possible duplicate is still created and counted in `flagged_duplicate`.
+
+```json
+{
+  "data": {
+    "id": "4f6e8d2c-5555-4a6b-9c7d-8e9f0a1b2c3d",
+    "status": "succeeded",
+    "input_format": "json_array",
+    "row_count": 2,
+    "last_processed_row": 2,
+    "counts": { "created": 2, "flagged_duplicate": 0, "skipped_already_imported": 0, "failed": 0 },
+    "row_errors": [],
+    "started_by": "key",
+    "valid_only_run_at": null,
+    "created_at": "2026-10-05T10:00:00Z",
+    "updated_at": "2026-10-05T10:00:01Z"
+  }
+}
+```
+
+A job's `status` is `validating`, `needs_review`, `running`, `succeeded` or `failed`. A row that carries `allergies`,
+`current_medications` or `chronic_conditions` fails like any other invalid row. Files larger than 10 MiB, or with more than 100 rows, are refused before any row is read (`413`, `payload_too_large`, for size).
+
+## List import jobs
+
+The clinic's import jobs, oldest first. It shows progress and outcome only, never a file or a patient.
+
+`GET /v1/clinics/{clinic_id}/patient-imports`
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patient-imports?limit=25" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `limit` | integer, 1 to 100 | No | Default 25. |
+| `starting_after` | string | No | The previous `next_cursor`. |
+
+The answer is `{ "data": [ …jobs… ], "has_more": false, "next_cursor": null }`, each job shaped as above.
+
+## Read one import job
+
+`GET /v1/clinics/{clinic_id}/patient-imports/{job_id}`
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patient-imports/4f6e8d2c-5555-4a6b-9c7d-8e9f0a1b2c3d" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": {
+    "id": "4f6e8d2c-5555-4a6b-9c7d-8e9f0a1b2c3d",
+    "status": "needs_review",
+    "input_format": "json_array",
+    "row_count": 2,
+    "last_processed_row": 0,
+    "counts": { "created": 0, "flagged_duplicate": 0, "skipped_already_imported": 0, "failed": 1 },
+    "row_errors": [{ "row": 2, "field": "date_of_birth", "reason": "date_of_birth must be a valid date (YYYY-MM-DD)" }],
+    "started_by": "key",
+    "valid_only_run_at": null,
+    "created_at": "2026-10-05T10:00:00Z",
+    "updated_at": "2026-10-05T10:00:01Z"
+  }
+}
+```
+
+A job that does not exist, or belongs to another clinic, answers `not_found`.
+
+## Import only the rows that passed
+
+For a job in `needs_review`, this imports the valid rows and leaves the failed ones out. It is a deliberate choice,
+recorded on the job. There is no request body. The failed rows stay listed in `row_errors` for reference.
+
+`POST /v1/clinics/{clinic_id}/patient-imports/{job_id}/run-valid`
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/patient-imports/4f6e8d2c-5555-4a6b-9c7d-8e9f0a1b2c3d/run-valid" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": {
+    "id": "4f6e8d2c-5555-4a6b-9c7d-8e9f0a1b2c3d",
+    "status": "succeeded",
+    "input_format": "json_array",
+    "row_count": 2,
+    "last_processed_row": 2,
+    "counts": { "created": 1, "flagged_duplicate": 0, "skipped_already_imported": 0, "failed": 1 },
+    "row_errors": [{ "row": 2, "field": "date_of_birth", "reason": "date_of_birth must be a valid date (YYYY-MM-DD)" }],
+    "started_by": "key",
+    "valid_only_run_at": "2026-10-05T10:05:00Z",
+    "created_at": "2026-10-05T10:00:00Z",
+    "updated_at": "2026-10-05T10:05:00Z"
+  }
+}
+```
+
+The files behind a job are kept for **7 days**. After that, or when the job is not in `needs_review`, this route refuses (see below).
+
+## Things to know
+
+**Refusals you may meet**
+
+| Status | `code` | When |
+| --- | --- | --- |
+| `400` | `invalid_request` | A field is missing, has the wrong shape or value, is not allowed, or a read-only field was sent. The `detail` names it. Also a missing `Idempotency-Key` on a create. |
+| `403` | `scope_missing` | The key lacks `patients:read` or `patients:write`. See [Permissions](/permissions). |
+| `403` | `agreement_required`, `addon_required` | The agreement or the API add-on is not in place. See [Patient data access](/patient-data-access). |
+| `403` | `notification_settings_not_writable` | You sent `notification_settings`. |
+| `403` | `patient_cap_reached` | The clinic's plan has reached its patient limit. |
+| `404` | `not_found` | The patient or job does not exist, is restricted, or belongs to another clinic. Never told apart. |
+| `409` | `idempotency_key_conflict` | The same `Idempotency-Key` was used for a different request. |
+| `409` | `idempotency_key_reused` | A request with that key is still being processed. Wait, then retry. |
+| `409` | `already_imported` | A file with exactly this content was already imported. |
+| `409` | `invalid_status_transition` | `run-valid` on a job that is not waiting for review. |
+| `410` | `file_expired` | `run-valid` after the file was deleted. Upload it again. |
+| `413` | `payload_too_large` | An import file over 10 MiB. |
+| `429` | `rate_limited` | Too many requests. See [Rate limits](/rate-limits). |
+
+Every error has the shape described in [Errors](/errors).
+
+**Idempotency.** `POST` create needs an `Idempotency-Key`. `PATCH`, archive and the import routes do not. See
+[Retries and duplicates](/retries-and-idempotency).
+
+**Pagination.** The list, the duplicate list and the import-job list use `limit`, `starting_after`, `has_more` and
+`next_cursor`. See [Pagination](/pagination).
+
+**FHIR.** Add `Accept: application/fhir+json` to the list or the single read and you get a `Patient` (or a `Bundle` of
+them). You can also create (`POST`) or change (`PATCH`) a patient by sending a FHIR `Patient` with
+`Content-Type: application/fhir+json`; the answer is still our JSON shape. Some FHIR elements that have no home in a
+clinic record (for example `deceasedBoolean` or `Patient.link`) are refused rather than dropped. The import also
+accepts a FHIR Bundle. See [FHIR R4](/fhir).
+
+**Organization keys and connections.** An organization key sees only the patients its connection reaches. See
+[Connections](/connections).
+
+## Common tasks
+
+**Find a patient, or create one if they are new**
+
+1. `POST …/patients/search` with their email and phone.
+2. If `data` has an item, use its `id`.
+3. If `data` is empty, `POST …/patients` with a fresh `Idempotency-Key`. If the answer carries `duplicate_candidates`, show them to a person.
+
+**Keep your own copy in step**
+
+1. Page through `GET …/patients?updated_since=LAST_TIME` until `has_more` is `false`.
+2. Store the time you started the run, and use it next time.
+
+**Fix someone's contact details**
+
+1. `PATCH …/patients/PATIENT_ID` with the new `phones` set. Remember the array replaces the whole set, so send every number you want to keep.
+
+**Move a clinic's old list across**
+
+1. `POST …/patient-imports` with `format` and `data`.
+2. If the job is `succeeded`, you are done. If it is `needs_review`, read `row_errors`, fix the file and send it again, or `POST …/run-valid` to bring in only the good rows.
+
+**Book their next visit.** Continue with [Appointments](/appointments).

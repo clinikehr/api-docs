@@ -1,0 +1,46 @@
+---
+title: "API reference"
+description: "Every endpoint of the ClinikEHR API: what it takes, what it returns, and the permission it needs."
+icon: "/images/icons/code.svg"
+---
+
+This tab lists **every endpoint you can call**, grouped by resource. Each page shows the request (path, query and body), every response with its fields, and the permission the key needs. The guides in **Documentation** explain how the pieces fit together; this tab is the exact contract.
+
+## Base URL
+
+```
+https://api.clinikehr.com
+```
+
+Every path starts with the version, `/v1`. Nothing breaks inside `v1`; see [Versioning](/versioning).
+
+## Authentication
+
+Send your key as a bearer token on every request:
+
+```bash
+curl https://api.clinikehr.com/v1/me \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+`ehr_live_` keys reach real clinics; `ehr_test_` keys reach only your workspace's sandbox of fictional data. Never call the API from a browser or a mobile app. See [Authentication](/authentication).
+
+## Permissions
+
+Each endpoint page names the **permission** it needs, such as `allergies:read`. A key carries only the permissions it was given, and an organization's key reaches a clinic only through that clinic's connection. A missing permission is refused with `403 scope_missing`. See [Permissions](/permissions).
+
+## Requests and responses
+
+- Request and response bodies are JSON (`Content-Type: application/json`).
+- Lists are cursor-paginated with `limit` and `starting_after`, and answer `{ data, has_more, next_cursor }`. See [Pagination](/pagination).
+- Every write accepts an `Idempotency-Key` header, so a retry is never applied twice; most `POST`s require it. See [Retries and idempotency](/retries-and-idempotency).
+- Every failure is `application/problem+json` with a stable `code` to branch on. See [Errors](/errors).
+- Requests are rate limited per key. See [Rate limits](/rate-limits).
+
+## FHIR
+
+Clinical resources can also be read as FHIR R4. See [FHIR](/fhir).
+
+## Try it
+
+Copy any example on an endpoint page and run it with your own key. Start in your sandbox with an `ehr_test_` key; see the [Quickstart](/quickstart). A Postman collection and SDKs are described in [SDKs and Postman](/sdks-and-postman).

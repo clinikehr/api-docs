@@ -1,0 +1,444 @@
+---
+title: "Appointments"
+description: "See what can be booked, find a free time, then book, reschedule, confirm and cancel a patient's appointment. Every route, with examples."
+icon: "/images/icons/compass.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+<Availability keyKind={['clinic', 'organization']} scopes="appointments.availability:read · appointments:read · appointments:write" note="Booking and reading appointments is patient information: it also needs the API add-on and the accepted agreement. See Patient data access." />
+
+An **appointment** is a time a patient is booked to see a clinic: which patient, which service (a consultation, a
+check-up), which clinician, and when. Booking through the API follows the same rules as booking in the clinic's own
+app: the service must be bookable, the clinician must offer it, the clinic must be taking bookings for that person
+at that time, and nobody can be double-booked.
+
+If you are new to scheduling, the flow is always the same four steps:
+
+1. **Discover** what can be booked: the clinic's services and clinicians.
+2. **Check** the free times for a service.
+3. **Book** one, for a patient you already have (see [Patients](/patients)).
+4. **Change** it later: confirm it, move it, or cancel it. Nothing is ever deleted.
+
+## Who can use it
+
+Appointments use three permissions. See [Permissions](/permissions) for how a key gets them.
+
+| Permission | Lets your key |
+| --- | --- |
+| `appointments.availability:read` | See the clinic's bookable services, its clinicians, and free times. This is **not patient information**: no patient is involved. |
+| `appointments:read` | List and read appointments. This is patient information. |
+| `appointments:write` | Book, change and cancel appointments. This is patient information. |
+
+The two patient-information permissions need the API add-on and the accepted agreement, and for an organization the
+approval for patient data. Read [Patient data access](/patient-data-access) first. A **test key** (`ehr_test_…`)
+reaches only your workspace's sandbox, with invented patients and services, so you can try everything below safely.
+
+An appointment for a patient the clinic has restricted never appears in a list. A restricted patient's appointment, one that does not exist, and one in another clinic all answer `404` with
+`code: "not_found"`: they are never told apart. See [Errors](/errors).
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| See bookable services | `GET /v1/clinics/{clinic_id}/appointments/services` | `appointments.availability:read` |
+| See clinicians | `GET /v1/clinics/{clinic_id}/appointments/clinicians` | `appointments.availability:read` |
+| Find free times | `GET /v1/clinics/{clinic_id}/appointments/availability` | `appointments.availability:read` |
+| List appointments | `GET /v1/clinics/{clinic_id}/appointments` | `appointments:read` |
+| Book an appointment | `POST /v1/clinics/{clinic_id}/appointments` | `appointments:write` |
+| Read one appointment | `GET /v1/clinics/{clinic_id}/appointments/{appointment_id}` | `appointments:read` |
+| Change or confirm one | `PATCH /v1/clinics/{clinic_id}/appointments/{appointment_id}` | `appointments:write` |
+| Cancel one | `POST /v1/clinics/{clinic_id}/appointments/{appointment_id}/cancel` | `appointments:write` |
+
+## What an appointment looks like
+
+```json
+{
+  "id": "3c1d5e7f-6666-4b7c-8d9e-9fa0b1c2d3e4",
+  "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "service_id": "7a8b9c0d-7777-4c8d-9e0f-a1b2c3d4e5f6",
+  "clinician_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+  "start_at": "2026-10-12T14:00:00Z",
+  "end_at": "2026-10-12T14:30:00Z",
+  "duration_minutes": 30,
+  "timezone": "America/New_York",
+  "venue_type": "physical",
+  "status": "scheduled",
+  "booking_source": "api",
+  "urgency_level": "normal",
+  "patient_notes": "First visit.",
+  "clinic_notes": null,
+  "symptoms_description": null,
+  "payment_status": "pending",
+  "email_notifications": true,
+  "sms_notifications": true,
+  "voice_notifications": false,
+  "location_id": null,
+  "cancellation_reason": null,
+  "cancelled_at": null,
+  "created_at": "2026-10-05T10:00:00Z",
+  "updated_at": "2026-10-05T10:00:00Z"
+}
+```
+
+Only `id` and `status` are always present. The fields you will use most:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | uuid | The appointment's id. |
+| `patient_id`, `service_id`, `clinician_id`, `location_id` | uuid or null | Who, what, with whom and where. A clinician's id is the id returned by the clinicians route. |
+| `start_at`, `end_at` | date-time | When it starts and ends. `end_at` always follows from the service's length. You never send it. |
+| `duration_minutes`, `timezone` | integer, string | The length and the clinic's time zone for this booking. |
+| `venue_type` | `physical`, `online`, `mobile_clinic` or null | Where it takes place. |
+| `status` | `scheduled`, `confirmed`, `in_progress`, `completed`, `cancelled`, `no_show`, `rescheduled` | See the rules below. |
+| `booking_source` | string or null | `api` for an appointment made through this API. |
+| `urgency_level` | `low`, `normal`, `high`, `emergency` or null | |
+| `patient_notes`, `clinic_notes`, `symptoms_description` | string or null | Free text. |
+| `payment_status`, `payment_method`, `payment_amount`, `payment_due_date`, `amount_paid` | various | How the visit is to be paid for. You can set some of these only when booking. |
+| `email_notifications`, `sms_notifications`, `voice_notifications` | boolean or null | Whether the patient is sent reminders by that route. |
+| `cancellation_reason`, `cancelled_at`, `completed_at` | string, date-time | Set by a cancellation or completion. |
+| `confirmation_sent_at`, `reminder_sent_at` and related fields | date-time or string | When the clinic last messaged the patient. Read-only. |
+| `participants`, `is_group_appointment`, `max_participants`, `group_name`, `recurrence_pattern_id`, `series_id`, `series_index`, `class_session_id` | various | Read-only. Group and repeating appointments cannot be created through the API. |
+| `created_at`, `updated_at` | date-time | |
+
+Fields about the clinic's internal scheduling and AI scoring (for example `ai_category` and `predicted_show_probability`) are returned for information only and cannot be written.
+
+## See bookable services
+
+The things a patient can book, such as a consultation. Use a service's `id` to find times and to book.
+
+`GET /v1/clinics/{clinic_id}/appointments/services`
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments/services" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+There are no query parameters.
+
+```json
+{
+  "data": [
+    { "id": "7a8b9c0d-7777-4c8d-9e0f-a1b2c3d4e5f6", "name": "General consultation", "duration_minutes": 30, "category": "consultation", "is_active": true }
+  ]
+}
+```
+
+## See clinicians
+
+The clinic's clinicians, optionally only those who offer one service.
+
+`GET /v1/clinics/{clinic_id}/appointments/clinicians`
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments/clinicians?service_id=7a8b9c0d-7777-4c8d-9e0f-a1b2c3d4e5f6" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `service_id` | uuid | No | Only clinicians who offer this service. |
+
+```json
+{
+  "data": [
+    { "id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd", "display_name": "Dr. Sample", "role": "doctor" }
+  ]
+}
+```
+
+## Find free times
+
+The times a service can be booked over a range of dates.
+
+`GET /v1/clinics/{clinic_id}/appointments/availability`
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments/availability?service_id=7a8b9c0d-7777-4c8d-9e0f-a1b2c3d4e5f6&from=2026-10-12&to=2026-10-14" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `service_id` | uuid | **Yes** | The service to find times for. |
+| `from` | date | **Yes** | First day, `YYYY-MM-DD`. |
+| `to` | date | **Yes** | Last day, `YYYY-MM-DD`. A range longer than **60 days** is shortened to 60. |
+| `clinician_id` | uuid | No | Only this clinician's times. |
+| `location_id` | uuid | No | Only this location's times. |
+
+```json
+{
+  "data": [
+    { "clinician_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd", "date": "2026-10-12", "time": "09:00", "capacity": 1 },
+    { "clinician_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd", "date": "2026-10-12", "time": "09:30", "capacity": 1 }
+  ],
+  "timezone": "America/New_York"
+}
+```
+
+`date` and `time` are in the clinic's `timezone`, which comes back beside the list. **A free time is a hint, not a
+hold.** Someone else can take it before you book, so always be ready for a `409` when you book (see
+[Things to know](#things-to-know)).
+
+## List appointments
+
+`GET /v1/clinics/{clinic_id}/appointments`
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments?patient_id=9d2e7a10-2222-4b3c-8d4e-123456789abc&status=scheduled" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `patient_id` | uuid | No | Only this patient's appointments. |
+| `clinician_id` | uuid | No | Only this clinician's. |
+| `status` | `scheduled`, `confirmed`, `in_progress`, `completed`, `cancelled`, `no_show`, `rescheduled` | No | Only appointments in this state. |
+| `from`, `to` | date | No | Only appointments in this date range. A range longer than **366 days** is shortened. |
+| `updated_since` | date-time | No | Only appointments changed since then. |
+| `limit` | integer, 1 to 100 | No | Default 25. |
+| `starting_after` | string | No | The previous `next_cursor`. See [Pagination](/pagination). |
+
+```json
+{
+  "data": [
+    {
+      "id": "3c1d5e7f-6666-4b7c-8d9e-9fa0b1c2d3e4",
+      "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+      "service_id": "7a8b9c0d-7777-4c8d-9e0f-a1b2c3d4e5f6",
+      "clinician_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+      "start_at": "2026-10-12T14:00:00Z",
+      "end_at": "2026-10-12T14:30:00Z",
+      "status": "scheduled"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+(Each item is a full appointment, shortened here.)
+
+## Book an appointment
+
+Books a patient for a service at a time. **Send an `Idempotency-Key`** header or the request is refused, so that a
+retry never books twice. See [Retries and duplicates](/retries-and-idempotency).
+
+`POST /v1/clinics/{clinic_id}/appointments`
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+        "service_id": "7a8b9c0d-7777-4c8d-9e0f-a1b2c3d4e5f6",
+        "clinician_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+        "start_at": "2026-10-12T09:00:00-04:00",
+        "patient_notes": "First visit."
+      }'
+```
+
+| Body field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `patient_id` | uuid | **Yes** | A patient of this clinic. |
+| `service_id` | uuid | **Yes** | A bookable service of this clinic. |
+| `start_at` | date-time | **Yes** | ISO 8601 **with an explicit offset** such as `-04:00` or `Z`. A time with no offset is refused, never guessed. It cannot be in the past. |
+| `clinician_id` | uuid | No | Omit it and the clinic picks a free clinician who offers the service. If you name one, they must offer the service. |
+| `location_id` | uuid | No | An active location of the clinic. |
+| `venue_type` | `physical`, `online`, `mobile_clinic` | No | Default `physical`. |
+| `urgency_level` | `low`, `normal`, `high`, `emergency` | No | Default `normal`. |
+| `patient_notes`, `clinic_notes`, `symptoms_description` | string | No | Free text. |
+| `status` | `scheduled` or `confirmed` | No | Default `scheduled`. No other status is accepted on a booking. |
+| `payment_amount` | number, 0 or more | No | |
+| `payment_method` | string | No | |
+| `payment_status` | `pending` or `paid` | No | Default `pending`. |
+| `notify_patient` | boolean | No | Default `true`. Setting `false` turns this appointment's email, text and voice reminders **off on the appointment itself**, and they stay off. It is a real setting, not a one-time skip. |
+| `run_automations` | boolean | No | Default `false`. When `false`, the clinic's automations that react to a new appointment do not run for this booking. |
+
+A field that is not listed is refused with `invalid_request`. **Not supported through the API:** a visit that bundles
+several services, redeeming a package, deposit or discount, attaching default documents, and group appointments. Book one patient, one service at a time.
+
+The answer is the appointment:
+
+```json
+{
+  "data": {
+    "id": "3c1d5e7f-6666-4b7c-8d9e-9fa0b1c2d3e4",
+    "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+    "service_id": "7a8b9c0d-7777-4c8d-9e0f-a1b2c3d4e5f6",
+    "clinician_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+    "start_at": "2026-10-12T13:00:00Z",
+    "end_at": "2026-10-12T13:30:00Z",
+    "duration_minutes": 30,
+    "status": "scheduled",
+    "booking_source": "api",
+    "venue_type": "physical",
+    "urgency_level": "normal",
+    "payment_status": "pending"
+  }
+}
+```
+
+If a retry with the same key arrives after the first succeeded, you get the same appointment back and nothing is booked a second time.
+
+## Read one appointment
+
+`GET /v1/clinics/{clinic_id}/appointments/{appointment_id}`
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments/3c1d5e7f-6666-4b7c-8d9e-9fa0b1c2d3e4" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Path parameter | Meaning |
+| --- | --- |
+| `clinic_id` | The clinic. |
+| `appointment_id` | The appointment's `id`. |
+
+```json
+{
+  "data": {
+    "id": "3c1d5e7f-6666-4b7c-8d9e-9fa0b1c2d3e4",
+    "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+    "service_id": "7a8b9c0d-7777-4c8d-9e0f-a1b2c3d4e5f6",
+    "start_at": "2026-10-12T13:00:00Z",
+    "end_at": "2026-10-12T13:30:00Z",
+    "status": "scheduled"
+  }
+}
+```
+
+## Change or confirm an appointment
+
+Moves an appointment, changes its clinician, venue, urgency, notes or reminder settings, or **confirms** it. Send only
+what changes. **Send an `Idempotency-Key`.**
+
+`PATCH /v1/clinics/{clinic_id}/appointments/{appointment_id}`
+
+```bash
+curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments/3c1d5e7f-6666-4b7c-8d9e-9fa0b1c2d3e4" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e" \
+  -H "Content-Type: application/json" \
+  -d '{ "start_at": "2026-10-13T10:00:00-04:00", "status": "confirmed" }'
+```
+
+| Body field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `start_at` | date-time | No | A new time, with an offset. Sending it **reschedules**, and the new time is checked again for availability, time off and double-booking. It cannot be in the past, and cannot be `null`. |
+| `clinician_id` | uuid | No | A different clinician who offers the service. Cannot be `null`. |
+| `venue_type` | `physical`, `online`, `mobile_clinic` | No | |
+| `urgency_level` | `low`, `normal`, `high`, `emergency` | No | |
+| `patient_notes`, `clinic_notes`, `symptoms_description` | string or null | No | `null` clears the note. |
+| `status` | `confirmed` | No | The **only** status this route can set. Use the cancel route to cancel. |
+| `email_notifications`, `sms_notifications`, `voice_notifications` | boolean | No | Turn a reminder route on or off for this appointment. |
+| `run_automations` | boolean | No | Default `false`. |
+
+**You cannot change `patient_id`, `service_id`, `location_id` or any payment field after booking.** Sending one is
+refused with `invalid_request`, as is any other field not listed. To book a different patient or service, cancel and book again.
+An appointment that is already `cancelled`, `completed` or `no_show` can no longer be changed.
+With a **test key**, changing `start_at` is not supported in the sandbox: cancel and book again.
+
+The answer is the updated appointment, shaped as in [Read one appointment](#read-one-appointment).
+
+## Cancel an appointment
+
+`POST /v1/clinics/{clinic_id}/appointments/{appointment_id}/cancel`
+
+This is the **only** way to set an appointment to `cancelled`. It does not delete anything: the appointment stays on
+record with its reason. The body is optional. **Send an `Idempotency-Key`.**
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments/3c1d5e7f-6666-4b7c-8d9e-9fa0b1c2d3e4/cancel" \
+  -H "Authorization: Bearer ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 5d6e7f80-91a2-4b3c-8d4e-5f6a7b8c9d0e" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "Patient asked to cancel", "notify_patient": true }'
+```
+
+| Body field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `reason` | string | No | Why it was cancelled. Kept on the appointment as `cancellation_reason`. |
+| `notify_patient` | boolean | No | Default `true`. `false` turns the patient's reminders off for this appointment. It never turns back on a reminder that was already switched off. |
+| `run_automations` | boolean | No | Default `false`. |
+
+```json
+{
+  "data": {
+    "id": "3c1d5e7f-6666-4b7c-8d9e-9fa0b1c2d3e4",
+    "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+    "status": "cancelled",
+    "cancellation_reason": "Patient asked to cancel",
+    "cancelled_at": "2026-10-05T11:00:00Z"
+  }
+}
+```
+
+Cancelling an appointment that is already cancelled is not an error: it succeeds again and returns the same
+appointment, with `status` still `cancelled`. An appointment that is `completed` or `no_show` cannot be cancelled.
+
+## Things to know
+
+**Refusals you may meet**
+
+| Status | `code` | When |
+| --- | --- | --- |
+| `400` | `invalid_request` | A field is missing, malformed, not allowed or immutable; `start_at` has no offset or is in the past; the patient, service, location or clinician does not belong to this clinic; the clinician does not offer the service; the appointment is already `cancelled`, `completed` or `no_show`. The `detail` says which. Also a missing `Idempotency-Key` on a book, change or cancel. |
+| `403` | `scope_missing` | The key lacks the permission. See [Permissions](/permissions). |
+| `403` | `agreement_required`, `addon_required` | The agreement or add-on for patient information is not in place. |
+| `404` | `not_found` | The appointment, or the patient, does not exist, is restricted or belongs to another clinic. |
+| `409` | `slot_taken` | That clinician already has an appointment overlapping this time. Pick another time. |
+| `409` | `no_provider_available` | You did not name a clinician and none who offers the service is free then. |
+| `409` | `out_of_office` | The clinic is not taking bookings for that clinician at that time. |
+| `409` | `idempotency_key_conflict` | The same `Idempotency-Key` was used for a different request. |
+| `409` | `idempotency_key_reused` | A request with that key is still being processed. Wait, then retry. |
+| `429` | `rate_limited` | See [Rate limits](/rate-limits). |
+
+Every error has the shape described in [Errors](/errors).
+
+**Idempotency.** Book, change and cancel all need an `Idempotency-Key`. Use a fresh one per action and the same one
+for a retry. The three read routes and the discovery routes need none.
+
+**Pagination.** Only the list of appointments is paged (`limit`, `starting_after`, `has_more`, `next_cursor`). The
+services, clinicians and availability lists return everything in one answer. See [Pagination](/pagination).
+
+**Dates and time zones.** You send `start_at` with an offset. Free times and each appointment's `timezone` are in the clinic's own time zone.
+
+**FHIR.** Add `Accept: application/fhir+json` to the list or the single read and you get an `Appointment` (or a
+`Bundle` of them). You can also book (`POST`) and change (`PATCH`) by sending a FHIR `Appointment` with
+`Content-Type: application/fhir+json`; the appointment must reference the clinic's service as a `HealthcareService`
+in `basedOn`. The answer to a write is still our JSON shape. The discovery routes and the cancel route have no FHIR
+form. See [FHIR R4](/fhir).
+
+**Organization keys and connections.** An organization key reaches only the clinics it is connected to. See
+[Connections](/connections).
+
+## Common tasks
+
+**Book a patient's next visit**
+
+1. `GET …/appointments/services` and choose a service.
+2. `GET …/appointments/availability?service_id=…&from=…&to=…` and choose a time.
+3. `POST …/appointments` with the patient, service, time and a fresh `Idempotency-Key`. On `409 slot_taken`, go back to step 2.
+
+**Find a patient, then list their appointments**
+
+1. Find the patient with [Search by identifiers](/patients#search-by-identifiers).
+2. `GET …/appointments?patient_id=PATIENT_ID&from=2026-10-01&to=2026-12-31`.
+
+**Show a clinician's day**
+
+1. `GET …/appointments/clinicians` for the clinician's `id`.
+2. `GET …/appointments?clinician_id=…&from=2026-10-12&to=2026-10-12`.
+
+**Move an appointment**
+
+1. `PATCH …/appointments/APPOINTMENT_ID` with the new `start_at` and a fresh `Idempotency-Key`. A `409` means the new time is not free.
+
+**Cancel it**
+
+1. `POST …/appointments/APPOINTMENT_ID/cancel` with an optional `reason`.
+
+**Keep your own calendar in step**
+
+1. Page through `GET …/appointments?updated_since=LAST_TIME` until `has_more` is `false`, and store the time you started.
