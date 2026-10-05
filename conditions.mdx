@@ -1,0 +1,197 @@
+---
+title: "Conditions"
+description: "Read a patient's problem list, and send a diagnosis for a clinician to review. A condition you send never reaches the chart on its own."
+icon: "/images/icons/shield-check.svg"
+---
+
+A **condition** is one entry on a patient's problem list: a diagnosis or a problem the clinic is keeping track of.
+Reading the list is immediate. **Writing is different.** A condition you send is held for a clinician to review, and
+only a clinician's decision puts it on the chart. Read [Reviewing outside submissions](/reviewing-outside-submissions)
+first if you have not already, because everything on this page builds on it.
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List a patient's conditions | `GET /v1/clinics/{clinic_id}/conditions?patient_id=…` | `conditions:read` |
+| Read one condition | `GET /v1/clinics/{clinic_id}/conditions/{condition_id}` | `conditions:read` |
+| Send a new condition | `POST /v1/clinics/{clinic_id}/conditions` | `conditions:write` |
+| Ask for a change to one | `PATCH /v1/clinics/{clinic_id}/conditions/{condition_id}` | `conditions:write` |
+| Follow what happened to something you sent | `GET /v1/clinics/{clinic_id}/submissions/{submission_id}` | `conditions:write` (for now, even to read) |
+
+The patient must be one your key is allowed to see. A patient the clinic has restricted, or a condition that does not
+exist, returns `404` with `code: "not_found"`. The two are never told apart. See [Errors](/errors).
+
+## What a condition looks like
+
+```json
+{
+  "id": "5b0c6f0e-1111-4a2b-9c3d-0123456789ab",
+  "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "title": "Type 2 diabetes mellitus",
+  "code": { "system": "icd-10-cm", "code": "E11.9" },
+  "clinical_status": "active",
+  "verification_status": "confirmed",
+  "onset_date": "2021-03-14",
+  "resolved_date": null,
+  "notes": "Diet controlled.",
+  "recorded_by": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+  "source": "clinic",
+  "origin_assistant_name": null,
+  "review_status": "confirmed",
+  "submission_id": null,
+  "decision_reason": null,
+  "created_at": "2026-10-01T09:00:00Z",
+  "updated_at": "2026-10-01T09:00:00Z"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `title` | The name of the condition, up to 500 characters. |
+| `code` | `null`, or a `system` and a `code` together. A code never appears without its system. |
+| `clinical_status` | `active`, `resolved` or `entered_in_error`. |
+| `verification_status` | `confirmed` for anything on the chart. `unconfirmed` for a condition you sent that has not been confirmed. |
+| `onset_date`, `resolved_date` | Calendar dates. `null` when not recorded, never a made-up date. |
+| `source` | `clinic` if the clinic's own staff entered it, `api` if it began as an outside submission that a clinician accepted. |
+| `origin_assistant_name` | The name the sender gave, for an `api` entry. |
+| `review_status` | Where the item stands: `confirmed`, `pending`, `rejected` or `withdrawn`. |
+| `submission_id` | The submission the item came from, when it came from one. |
+| `decision_reason` | The clinician's reason, only on a `rejected` item. |
+
+A condition you sent that is still waiting for review has `"id": null`: it has no place on the chart yet, so there is
+no condition to point at. Use `submission_id` to follow it.
+
+### Codes and code systems
+
+`code.system` is one of `icd-10-cm`, `icd-10`, `snomed-ct` or `local`. Send both parts or neither: a `code`
+without a `code_system` (or the reverse) is refused. For `icd-10-cm` and
+`icd-10`, a code you send must be a real ICD-10 code (with or without the dot, so `E119` and `E11.9` are the same). A
+code we do not recognise is refused with `invalid_request`, and nothing is sent for review. `snomed-ct` must be digits and is
+not looked up, and `local` is your own code. You can also send a condition with no code. In FHIR output, `local` codes carry text only.
+
+## List conditions
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/conditions?patient_id=PATIENT_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Meaning |
+| --- | --- |
+| `patient_id` | **Required.** The patient to list for. |
+| `review_status` | `confirmed` (the default), `pending`, or `all`. See below. |
+| `updated_since` | RFC 3339 timestamp: only items changed since then. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+### `review_status`
+
+- **`confirmed`** is the patient's problem list as it stands: only what a clinician or the clinic has put on the chart.
+- **`pending`** is the conditions **your own key or organization** sent that are still waiting for a decision, plus those that were declined, shown with their `review_status` so you can tell them apart. You never see another party's submissions.
+- **`all`** is both together.
+
+An item with `review_status` other than `confirmed` is not on the chart. Do not show it to a person as part of their record.
+
+## Send a condition
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/conditions" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "patient_id": "PATIENT_ID",
+        "title": "Type 2 diabetes mellitus",
+        "code": "E11.9",
+        "code_system": "icd-10-cm",
+        "clinical_status": "active",
+        "onset_date": "2021-03-14",
+        "notes": "Reported by the patient at intake.",
+        "client_reference": "intake-2026-10-03-0042"
+      }'
+```
+
+| Field | Notes |
+| --- | --- |
+| `patient_id` | Required. |
+| `title` | Required, 1 to 500 characters. |
+| `code`, `code_system` | Optional, but together. |
+| `clinical_status` | `active` (the default) or `resolved`. |
+| `onset_date`, `resolved_date` | Optional dates. A resolved date cannot be before the onset date. |
+| `notes` | Optional, up to 4000 characters. |
+| `client_reference` | Optional. Your own id for the item, so you can match it later. Reusing one for a different item returns `409 client_reference_conflict`. |
+| `origin_assistant_name` | Optional. The name of your system or assistant. The clinic's reviewer sees it as the sender. |
+
+**`Idempotency-Key` is required on `POST`** (and optional on `PATCH`). Sending the same key again returns the first
+answer and does not create a second submission. See [Retries and duplicates](/retries-and-idempotency).
+
+### The answer is 202, not 201
+
+```http
+HTTP/1.1 202 Accepted
+Location: /v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID
+```
+
+The body is the submission, showing `"status": "pending"`. A `202` is a receipt. It is **not** a condition on the
+chart. The `Location` header points at the submission so you can follow it.
+
+## After you send one
+
+Read the submission to see what happened:
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+- `pending`: waiting for a person at the clinic.
+- `confirmed`: a clinician accepted it. The condition is now on the problem list, recorded under the clinician's name, with `source: "api"`.
+- `rejected`: declined, with the reason. Do not resend it unchanged.
+- `withdrawn`: you took it back while it was pending.
+
+Only the key or organization that sent a submission can read it. Anyone else gets `404`. A submission that has been
+decided can no longer be changed (`409 submission_not_pending`). To change a condition after it is confirmed, send a
+new change as described next.
+
+A clinic can also choose to accept new conditions without review. Then the answer to your send already shows `review_status: "confirmed"` and `accepted_automatically: true`, and the record reads `accepted_by: "automatic"` and `verification_status: "unconfirmed"` until a clinician reviews it. `reviewed_at` and `reviewed_by_staff_id` are `null` until then. A change to a condition is always reviewed. See [Automatic acceptance](/automatic-acceptance).
+
+## Ask for a change
+
+```bash
+curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/conditions/CONDITION_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "clinical_status": "resolved", "resolved_date": "2026-09-30" }'
+```
+
+Send only the fields that change: any of `title`, `code`, `code_system`, `clinical_status`, `onset_date`,
+`resolved_date`, `notes`. The answer is `202 Accepted`, and the change waits for review exactly like a new condition.
+The condition on the chart does not change until a clinician accepts it.
+
+### Retracting with `entered_in_error`
+
+Setting `clinical_status` to `entered_in_error` asks the clinic to mark the condition as **never having been true**.
+That is different from `resolved`, which means it was true and has ended. It is reviewed like any other change.
+`entered_in_error` is final: once a condition is marked so, it cannot be changed again, and the API never deletes a
+condition.
+
+## FHIR
+
+A FHIR `Condition` body is also accepted on `POST` and `PATCH` (`Content-Type: application/fhir+json`), and is
+answered in the plain shape with `202`. These are refused with an `OperationOutcome`, not dropped: `severity`, `stage`,
+`evidence`, `bodySite`, `encounter`, a code system other than ICD-10-CM, ICD-10 or SNOMED CT, and a `verificationStatus` you
+assert yourself (whether a condition is confirmed is the clinic's decision, never the sender's).
+
+Send `Accept: application/fhir+json` to read a condition, or a list of them as a `Bundle`, as a FHIR R4 `Condition`.
+It is the same record under the same permission. `clinicalStatus` and `verificationStatus` use the standard HL7
+codings, `category` is `problem-list-item`, `onsetDateTime` and `abatementDateTime` carry the dates, and `subject`
+points at the patient. See [FHIR R4](/fhir).
+
+## A worked example
+
+1. Your system reads a patient's intake form and finds "asthma". It sends `POST …/conditions` with `title: "Asthma"`, `code: "J45.909"`, `code_system: "icd-10-cm"` and an `Idempotency-Key`. The answer is `202`, with a `Location` header.
+2. The connection drops before you read the answer. You send the same request with the same `Idempotency-Key`. You get the same submission back, not a second one.
+3. Hours later you read the submission. It is `pending`. Nothing is on the problem list, and `GET …/conditions?patient_id=…` does not show it.
+4. A clinician at the clinic opens **Outside submissions**, reads it and selects **Accept**. You read the submission again and it is `confirmed`.
+5. `GET …/conditions?patient_id=…` now returns a condition with `source: "api"` and your `origin_assistant_name`. The clinic's own problem list shows a quiet line, **From** and your name, beside it.
+6. Later the asthma resolves. You send `PATCH …/conditions/CONDITION_ID` with `{ "clinical_status": "resolved" }`. It is reviewed the same way.
+
+A test key reaches only your workspace's sandbox, which holds invented patients, so you can try the requests above without touching a real chart.

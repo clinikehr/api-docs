@@ -1,0 +1,33 @@
+
+
+export const KEY_KIND_LABELS = {
+  clinic: 'Clinic-owned key',
+  organization: 'Organization key (developer portal)',
+};
+
+export const Availability = ({ keyKind = [], plan, scopes, note }) => {
+  const kinds = keyKind.length ? keyKind : ['clinic', 'organization'];
+
+  return (
+    <div className="ck-avail" role="note" aria-label="API availability">
+      <span className="ck-avail__label">Works with</span>
+
+      {kinds.map((k, i) => (
+        <span
+          key={k}
+          className={`ck-pill ck-pill--${i === 0 ? 'clinic' : 'lims'}`}
+        >
+          {KEY_KIND_LABELS[k] || k}
+        </span>
+      ))}
+
+      {plan ? <span className="ck-avail__label">Needs</span> : null}
+      {plan ? <span className="ck-pill ck-pill--plan">{plan}</span> : null}
+
+      {scopes ? <span className="ck-avail__label">Scope</span> : null}
+      {scopes ? <span className="ck-pill ck-pill--role">{scopes}</span> : null}
+
+      {note ? <span className="ck-avail__note">{note}</span> : null}
+    </div>
+  );
+};

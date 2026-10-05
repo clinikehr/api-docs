@@ -1,0 +1,65 @@
+---
+title: "SDKs and Postman"
+description: "Client libraries and a ready-made request collection for the ClinikEHR API."
+icon: "/images/icons/code.svg"
+---
+
+Everything the API does is plain HTTPS with a bearer key, so you never need a library. We are also
+preparing three conveniences, so you do not have to write the same plumbing yourself.
+
+| What | For | Status |
+| --- | --- | --- |
+| **TypeScript client** (`@clinikehr/api`) | Node.js and server-side TypeScript | **Coming soon.** Not published yet. |
+| **Python client** (`clinikehr`) | Python 3 services and scripts | **Coming soon.** Not published yet. |
+| **Postman collection** | Trying a request by hand | **Available now.** [Download it](/downloads/clinikehr-ehr-api.postman_collection.json). |
+
+<Warning>
+  The two client libraries are **not published**. Do not look for them on npm or PyPI yet, and do not
+  install a package of the same name from anyone else. This page changes when they are released.
+</Warning>
+
+## What the libraries will do
+
+Both are thin. They call the same endpoints this documentation describes, and add the parts that are
+easy to get wrong:
+
+- sending your key, and keeping it out of a browser;
+- a fresh `Idempotency-Key` on every write, **reused across retries** so a retry cannot create a
+  second record — see [Retries and duplicates](/retries-and-idempotency);
+- retrying a failed or rate-limited request with a sensible delay — see [Rate limits](/rate-limits);
+- walking a paged list for you — see [Pagination](/pagination);
+- typed errors that carry the `code` and `request_id` — see [Errors](/errors);
+- checking a webhook's signature — see [Verifying a webhook's signature](/verifying-webhook-signatures);
+- asking for FHIR instead of JSON — see [FHIR R4](/fhir).
+
+## The Postman collection
+
+The collection has one request for every endpoint, grouped the way this reference groups them.
+To use it:
+
+1. **Get the collection.** [Download the collection](/downloads/clinikehr-ehr-api.postman_collection.json)
+   (one JSON file). It is kept in step with this reference, so download it again when the API changes.
+2. In Postman, choose **Import** and select the file.
+3. Open the collection's **Variables** tab. `baseUrl` is already `https://api.clinikehr.com/v1`.
+   Set `bearerToken` to your key. Use a **test** key from the [developer portal](https://developer.clinikehr.com)
+   to begin, which reaches only your sandbox.
+4. Send the request for `GET /v1/me` first. It tells you which clinic or workspace the key belongs to, and proves
+   the key works.
+
+Every request that creates or changes something carries an `Idempotency-Key` header with a fresh
+value, so sending it twice by accident does not do it twice. Fill in the path values (such as
+`clinic_id`) and the body before you send.
+
+<Note>
+  Treat your key like a password. Do not save a live key into a collection you share, and do not
+  export a collection with a live key filled in.
+</Note>
+
+## Base URL
+
+```
+https://api.clinikehr.com/v1
+```
+
+Every endpoint lives under this base URL. See [Versioning](/versioning) for how the path changes over
+time, and [Authentication](/authentication) for how the key is sent.

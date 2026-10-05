@@ -1,0 +1,14 @@
+export const Path = ({ steps = [] }) => (
+  <span className="ck-path">
+    {steps.map((s, i) => (
+      <span key={i} className="ck-path__step">
+        {i > 0 ? (
+          <span className="ck-path__sep" aria-hidden="true">
+            ›
+          </span>
+        ) : null}
+        {s}
+      </span>
+    ))}
+  </span>
+);

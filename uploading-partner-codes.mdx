@@ -1,0 +1,105 @@
+---
+title: "Uploading your own medicine codes"
+description: "Registering your own identifier for a medicine, so availability and network search can resolve it."
+icon: "/images/icons/barcode.svg"
+---
+
+<Info>
+  **This route is live** for a clinic's own key, on any Team, Business (Pharmacy/Diagnostics editions)
+  or Enterprise plan with API access — no add-on or agreement needed, since it carries no patient
+  data. The developer dashboard's own **Partner codes** page (for a workspace managing its codes across
+  every clinic it's connected to, rather than one clinic uploading its own) is a separate path: it
+  checks a CSV file row by row before anything is sent, then uploads it and shows what matched, what is
+  waiting for a pharmacist's confirmation and what did not match. It needs the Admin role or higher in
+  the workspace.
+</Info>
+
+If your own systems refer to a medicine by a code that isn't a standard barcode, NAFDAC number, NDC, or RxNorm
+code — your own internal SKU, for instance — you can register that code once, and it will resolve the same way
+across every pharmacy your workspace is connected to.
+
+## Recognized identifier systems
+
+| System | Resolves against |
+| --- | --- |
+| `gtin` | The item's barcode, exact match. |
+| `nafdac` | The item's NAFDAC registration number, exact match. |
+| `ndc` | The item's NDC, exact match. |
+| `rxcui` | An RxNorm code, resolved through the shared medicine index. |
+| `partner` | **Your own code**, resolved through the mapping you upload here. |
+
+An identifier system not in this list is refused for the whole request — never a silent non-match.
+
+## Uploading a list
+
+```
+POST /v1/clinics/{clinic_id}/inventory/codes
+```
+
+Requires `inventory.items:write` (there is no separate "codes" permission — managing your own code list is treated
+the same as managing the catalogue). Accepts up to 1,000 rows in one request.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/codes" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 8c1e2f4a-6b3d-4e5f-9a0b-1c2d3e4f5a6b" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "codes": [
+      { "code": "SKU-10021", "barcode": "6001234567890", "name": "Amoxicillin 500mg capsules" },
+      { "code": "SKU-10088", "name": "Paracetamol 500mg tablets" }
+    ]
+  }'
+```
+
+Each row needs `code` (your own value) and may supply any of `barcode`, `nafdac_no`, `ndc`, `rxcui`, `name`,
+`strength`, `form`, `pack_size`. Uploading a code you've already sent updates it — a repeat is never rejected as a
+duplicate, and always resolves to the newest values you sent.
+
+```json
+{
+  "data": [
+    { "code": "SKU-10021", "state": "linked" },
+    { "code": "SKU-10088", "state": "needs_review", "reason": "matched by name only — several possible medicines" }
+  ]
+}
+```
+
+## How a row resolves
+
+| State | Meaning |
+| --- | --- |
+| `linked` | Matched automatically, on an **exact** identifier (barcode, NAFDAC number, NDC, or RxNorm code). Trustworthy. |
+| `needs_review` | Something matched by name only, or more than one distinct medicine matched an identifier — a person confirms before this is trusted. |
+| `unmatched` | Nothing in the shared index matched at all. |
+| `rejected` | A reviewer looked and said no. This never changes on its own. |
+
+<Warning>
+  A row is **never** linked on a name match alone — a name is a hint, not a proof of identity, and the wrong match
+  here is the wrong drug. Only an exact identifier match links automatically.
+</Warning>
+
+Once a code is `linked`, checking [availability](/stock-bands) by `system: "partner", value: "SKU-10021"` resolves
+through your mapping to whichever of the connected pharmacy's items it points at.
+
+<Info>
+  An unmapped or unconfirmed code answers `matched: false` on availability — the same as any other code the
+  platform doesn't recognize. It never answers as if the medicine were out of stock; "we don't know what this code
+  is" and "they have none" must never look the same.
+</Info>
+
+## Listing, reading, and removing your own codes
+
+```
+GET    /v1/clinics/{clinic_id}/inventory/codes
+GET    /v1/clinics/{clinic_id}/inventory/codes/{code_entry_id}
+DELETE /v1/clinics/{clinic_id}/inventory/codes/{code_entry_id}
+```
+
+You only ever see your own list — a workspace's codes are never visible to another workspace, and a clinic's own
+codes (uploaded with the clinic's own key) are never mixed with a connected organization's.
+
+## See also
+
+- [Reading stock bands](/stock-bands)
+- [Permissions](/permissions)

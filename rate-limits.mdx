@@ -1,0 +1,69 @@
+---
+title: "Rate limits"
+description: "How many requests a key can make per minute, how to read the headers that tell you where you stand, and what happens if you go over."
+icon: "/images/icons/gauge.svg"
+---
+
+Rate limits apply **per key**, not per clinic, per workspace, or per IP address. There are two separate ceilings, and they're easy to conflate:
+
+- A **per-minute** limit, enforced on every call, that refuses a call outright once it's spent.
+- For an organization's **workspace plan**, a **per-month** request allowance — see [Usage and billing](/usage-and-billing) for how that one behaves (Essential is billed for going over, never blocked; only a contracted Enterprise hard cap can refuse a call for this reason).
+
+## Per-minute limits today
+
+| Key kind | Requests per minute |
+| --- | --- |
+| A clinic's own key (Team-tier clinic) | 60 |
+| An organization's key | Set by your workspace plan — see your dashboard's **Plan & usage** page for the current number, since it's never hardcoded here (same reason as [Plans and pricing](/plans-and-pricing)) |
+
+<Note>
+  A clinic-owned key on the Team tier has **no monthly request cap** — only the 60-per-minute limit above. If you've seen a "100,000 requests a month" figure mentioned anywhere for a clinic's own key, that was never enforced and doesn't reflect a real limit; ask us if you're unsure which limit actually applies to your integration.
+</Note>
+
+## Reading the headers
+
+Every response — successful or not — carries headers telling you where you stand against the **per-minute** limit:
+
+```
+RateLimit-Limit: 60
+RateLimit-Remaining: 47
+RateLimit-Reset: 22
+```
+
+| Header | Meaning |
+| --- | --- |
+| `RateLimit-Limit` | The ceiling for the current window. |
+| `RateLimit-Remaining` | How many requests you have left in the current window. |
+| `RateLimit-Reset` | Seconds until the window resets. |
+
+Watch `RateLimit-Remaining` and back off before it hits zero, rather than waiting to be told.
+
+## When you go over the per-minute limit
+
+You get a `429` with `code: "rate_limited"` and a `Retry-After` header telling you how many seconds to wait:
+
+```json
+{
+  "type": "https://developer.clinikehr.com/errors/rate_limited",
+  "title": "Rate limited",
+  "status": 429,
+  "code": "rate_limited",
+  "request_id": "req_01example"
+}
+```
+
+```
+Retry-After: 22
+```
+
+Respect `Retry-After` exactly rather than retrying on a fixed interval — retrying too eagerly against a `429` just extends the wait for everyone using that key.
+
+<Note>
+  A `429` with `code: "quota_exceeded"` is a different limit — a contracted Enterprise workspace's monthly allowance, not this per-minute bucket. See [Errors](/errors) and [Usage and billing](/usage-and-billing).
+</Note>
+
+## Designing around the limit
+
+- **Cache what you can.** Availability and catalogue data don't need to be fetched on every page view of your own site — cache it and refresh on an interval, or in response to your own traffic patterns.
+- **Use `updated_since`** on list endpoints (see [Pagination](/pagination)) so a periodic sync only pulls what changed, instead of the whole catalogue every time.
+- **One key per integration**, not one key shared across unrelated systems — each gets its own bucket, and a runaway process in one doesn't starve another.

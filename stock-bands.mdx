@@ -1,0 +1,75 @@
+---
+title: "Stock bands, and what \"unknown\" means"
+description: "Reading availability as a band rather than an exact number, and the one place a band can be unknown."
+icon: "/images/icons/gauge.svg"
+---
+
+Checking availability answers a coarser, more honest question than "how many are there" — it tells you whether an
+item is worth asking about right now, without exposing a pharmacy's exact stock position to everyone who checks.
+
+## Checking availability for your own connected clinic
+
+```
+POST /v1/clinics/{clinic_id}/inventory/availability
+```
+
+Requires `inventory.availability:read`. Takes up to 100 item identifiers in one request.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/availability" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{"items":[{"system":"gtin","value":"6001234567890"}]}'
+```
+
+```json
+{
+  "data": [
+    { "item_id": "item_01example", "matched": true, "band": "low", "as_of": "2026-09-28T09:58:00Z" }
+  ]
+}
+```
+
+| Band | Means |
+| --- | --- |
+| `out` | Quantity is zero or less. |
+| `low` | At or below the clinic's own configured reorder threshold. |
+| `in_stock` | Above the threshold. |
+
+`matched: false` (with no `band` at all) means the identifier you sent didn't resolve to anything in this clinic's
+catalogue — that is a different fact from `out`, and the two must never be confused: "we don't know what this code
+is" is not the same claim as "they have none."
+
+`as_of` is the timestamp of the item's last recorded stock movement, or the moment of the read if it has never
+moved — always state-what-was-true-when, never a live-looking number with no age attached to it.
+
+<Info>
+  This endpoint's `band` is always one of the three values above for a clinic you're directly connected to — it
+  never returns `unknown`. Reading a single clinic you already hold a connection to assumes that clinic's own
+  figures are current; the "we genuinely don't know" case below is specific to searching across many pharmacies at
+  once.
+</Info>
+
+## The one place a band is `unknown` — network search
+
+Searching across the pharmacy network (rather than one clinic you're connected to) can return a fourth value:
+
+```json
+{ "item_id": "item_02example", "matched": true, "band": "unknown", "as_of": "2026-09-20T14:00:00Z" }
+```
+
+`unknown` means the pharmacy's own point-of-sale hasn't synced recently enough for its figures to be trusted — the
+platform would rather say "we don't know" than show a stale number as if it were live. It is not a fifth kind of
+"out of stock" and must never be rendered that way; show it as its own state (a question mark, a "may be out of
+date" label — never collapsed into `out` or `in_stock`).
+
+<Warning>
+  Never treat a cached `band` value as live forever. Poll again, or better — once available — subscribe to
+  `inventory.availability.changed` and `listing.freshness.changed` (see [Retries and duplicates](/retries-and-idempotency))
+  instead of re-checking on a timer.
+</Warning>
+
+## See also
+
+- [Inventory](/inventory) — the full item and stock resource
+- [Permissions](/permissions) — `inventory.availability:read` and what else it can see

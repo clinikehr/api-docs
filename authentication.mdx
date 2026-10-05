@@ -1,0 +1,96 @@
+---
+title: "Authentication"
+description: "How a ClinikEHR API key is formatted, how to send it, and what each authentication failure means."
+icon: "/images/icons/key.svg"
+---
+
+Every request is authenticated with a single **bearer key** — there is no OAuth flow, no client ID/secret pair, and no session cookie in this API.
+
+## Key format
+
+```
+ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…
+ehr_test_EXAMPLEKEYID0000000000_EXAMPLESECRET…
+```
+
+Every key starts `ehr_live_` or `ehr_test_`. Treat the whole string as one opaque secret; don't try to parse meaning out of it beyond the prefix.
+
+| Prefix | Reaches | Who can create one |
+| --- | --- | --- |
+| `ehr_live_` | A real clinic's real data | A clinic, from its own **Settings → API access** — or an organization, from its [developer portal](https://developer.clinikehr.com), once verified and on a paid plan |
+| `ehr_test_` | Your organization's own **sandbox** — a fixed, fictional clinic seeded with synthetic data, never a real one | An organization, from its developer portal, the moment its workspace is created — no verification needed |
+
+A clinic's own key (created in **Settings → API access**) is always `ehr_live_` — there is no test mode for a clinic-owned key, because it never has anything to test against but its own real data. Test mode exists for an **organization's** key, so you can build against a sandbox before a real clinic ever grants you a connection.
+
+## Sending the key
+
+Send it as an HTTP `Authorization` header, using the `Bearer` scheme:
+
+```bash
+curl https://api.clinikehr.com/v1/me \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+<Warning>
+  **Never send the key as a query parameter, and never call the API directly from a browser or a mobile app.** A key in a URL ends up in server logs, browser history, and proxy logs. A key in client-side code (a web page's JavaScript, or a mobile app's bundle) can be read out by anyone who opens it. Call the API from your own backend, and let your backend talk to your frontend or app.
+</Warning>
+
+## Where the key comes from
+
+Keys are created and revoked in one of two places, never through this API itself:
+
+- A **clinic's own key** — created and revoked in ClinikEHR by the clinic itself, under **Settings → API access**. See [Getting a key](/index#getting-a-key).
+- An **organization's key** — created and revoked in the [developer portal](https://developer.clinikehr.com), by a workspace member.
+
+In the portal, the **Test / Live** switch in the header chooses which keys, request logs and webhook endpoints you are looking at. A strip under the header always names the mode (red on Live). Test keys reach only your sandbox; live keys reach real clinics. A live key also needs the workspace to have accepted the [API Terms of Use](/terms-of-use) — see [Workspace settings](/workspace-settings-and-account#accepting-the-api-terms-of-use).
+
+There is no endpoint in this API for creating, listing, or rotating keys.
+
+A key's secret is shown **once**, when it is created. Afterwards, the portal and ClinikEHR list each key by a masked ID (`ehr_live_••••` and its last four characters) with a **Copy key ID** button. That ID names the key — for support, logs and revocation — but cannot authenticate a request. Select a key in the list to open a read-only panel with its permissions, dates, allowed addresses and status; the key itself is never shown again.
+
+## Verifying your workspace domain
+
+A live key needs a verified workspace, and verification starts with proving you control a domain. In the portal, open **Settings → Verification**, enter your domain under **Domain**, and select **Save domain**. The page then shows one DNS record to publish where you manage that domain:
+
+| Field | What to enter |
+| --- | --- |
+| **Type** | `TXT` |
+| **Host** | `_clinikehr-verify` (or `_clinikehr-verify.` followed by your subdomain, if you entered one). If your DNS provider wants the whole name, use **Full name** instead. |
+| **Value** | The text shown on the page — select the copy button beside it so nothing is mistyped. |
+
+Each of **Host**, **Full name** and **Value** has its own copy button. The record shows **Not checked yet**, **Not found** or **Verified**.
+
+You do not have to come back and press a button. We check the record on our own — every few minutes for the first hour, then hourly for a day, then every few hours for up to two weeks — and the page says **Last checked** and **Next automatic check** so you can see it working. **Check domain** looks straight away. If the two weeks pass without the record appearing, automatic checks pause; press **Check domain** after you publish it and they start again. DNS changes can take from a few minutes to a day to spread.
+
+Changing the domain issues a new value and starts the checks again. Once the domain reads **Domain verified**, complete the business profile and select **Submit for review**.
+
+## What a key can reach
+
+A clinic-owned key can only ever read the **one clinic** that created it — asking it for a different `clinic_id` fails exactly the same way as a `clinic_id` that doesn't exist at all (see [Errors](/errors)).
+
+An organization's key reaches every clinic that has approved a [connection](/connections) to that workspace — a live key reaches real, connected clinics; a test key reaches only the workspace's own sandbox, never a real clinic, and a live key can never reach the sandbox either. Confirm what a key currently reaches, and with what scopes, with:
+
+```bash
+curl https://api.clinikehr.com/v1/connections \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+See [Connections](/connections) for the full response shape — for a clinic-owned key, that list always has exactly one entry: the clinic itself, with `connected_at`/`expires_at` both `null`.
+
+## Authentication failures
+
+| Situation | Response |
+| --- | --- |
+| No `Authorization` header | `401`, `code: "invalid_key"` |
+| Key doesn't exist, or is malformed | `401`, `code: "invalid_key"` |
+| Key has been revoked | `401`, `code: "invalid_key"` |
+| Key has expired | `401`, `code: "invalid_key"` |
+| A test key asked for a `clinic_id` other than its own sandbox | `403`, `code: "sandbox_only"` |
+| A live organization key asked for a clinic while its workspace isn't verified | `403`, `code: "not_verified"` |
+| A live organization key whose workspace is still on the Sandbox plan | `403`, `code: "workspace_plan_required"` — see [Plans and pricing](/plans-and-pricing) |
+
+The first four all return the **same** code on purpose. The response never tells you which of those four happened — that distinction isn't yours to have, and revealing it would let someone probe for which keys used to exist.
+
+<Note>
+  A `401` means the key itself is the problem. A `403` means the key is valid but isn't allowed to do the specific thing you asked — see [Permissions](/permissions) and [Errors](/errors) for the complete list of codes.
+</Note>

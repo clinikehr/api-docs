@@ -1,0 +1,36 @@
+---
+title: "Versioning"
+description: "What the version in the URL means, what counts as a breaking change, and how we tell you before one happens."
+icon: "/images/icons/layers.svg"
+---
+
+The version is part of the URL, not a header you set:
+
+```
+https://api.clinikehr.com/v1/...
+```
+
+Everything documented on this site is `v1`.
+
+## What can change without a new version
+
+Inside `v1`, we can:
+
+- Add a new endpoint.
+- Add a new field to a response. **Don't fail on a field you don't recognize** — new fields will appear over time as this API grows past inventory.
+- Add a new, optional request parameter.
+- Add a new error `code` for a situation that previously didn't have one.
+
+None of these should break an integration that ignores what it doesn't understand, which is why that's the one rule worth building in from day one: read the fields you need and leave the rest alone.
+
+## What would require a new version
+
+Removing a field, renaming a field, changing what a field means, removing an endpoint, or changing what a `code` means would all be breaking changes. None of that happens inside `v1` without a new version appearing in the URL first, and advance notice before the old version stops answering.
+
+## This is early access
+
+This API is new, and covers inventory, connections, and network search today (see the [overview](/index) for the full current picture). Expect it to grow — new resources, new permissions, new endpoints — without those additions breaking anything you've already built against `v1`. If something described on this site ever stops matching what the API actually does, that's a bug in the docs, not a silent change you're expected to detect yourself.
+
+<Note>
+  A machine-readable OpenAPI 3.1 document mirrors this API's contract and is what generates parts of this site. It is a working document ahead of the guides above, so it can describe an operation before this site does, or before that operation is actually live — **this site is the record of what you can call today; treat anything the document alone claims as not shipped yet.**
+</Note>

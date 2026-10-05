@@ -1,0 +1,43 @@
+---
+title: "Plans and pricing"
+description: "The three workspace plans, what each one includes, and how to go live."
+icon: "/images/icons/credit-card.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+<Availability keyKind={['organization']} note="A clinic's own key (Settings → API access) has no separate plan of its own — it's included in the clinic's ClinikEHR subscription. See the overview's two ways to use this API." />
+
+A **workspace** is your own account on the ClinikEHR API platform — separate from any one clinic's data. Every workspace starts on **Sandbox** and moves to a paid plan by request; there is no self-serve checkout yet.
+
+## The three plans
+
+| Plan | Price | Live keys | Data | Connected clinics | Requests a month |
+| --- | --- | --- | --- | --- | --- |
+| **Sandbox** | Free | No — test keys and the sandbox only | Fictional, including invented patients, notes and appointments | None | Sandbox rate limit only |
+| **Essential** | See your [dashboard](https://developer.clinikehr.com/pricing) for the current price | Yes, once your workspace is verified | Non-patient data only — inventory, availability, listing, network search | A number included, then billed per extra clinic a month | A number included, then billed per 1,000 extra |
+| **Enterprise** | Contract | Yes | Whatever the contract grants, including patient data once it exists | Per contract | Per contract |
+
+<Info>
+  Exact prices and allowances are shown on the [pricing page in your dashboard](https://developer.clinikehr.com/pricing) — they are never hardcoded here, so this page can't drift from what you're actually billed. The pricing page shows both USD and NGN.
+</Info>
+
+## Being listed vs. reaching data
+
+Being found in the network search (so a clinic or partner can discover your workspace) needs only a paid ClinikEHR API plan — Essential or Enterprise. **Actually reading a clinic's own data is separate**: it also needs that clinic itself to be on a Team-level (or higher) ClinikEHR subscription. A live key can be minted and even connected to a clinic on a lower plan, but the clinic-side gate refuses the call until the clinic upgrades — see [Errors](/errors) for `plan_required`.
+
+## Going live
+
+There is no in-app checkout for a workspace plan yet. To move off Sandbox:
+
+1. [Verify your workspace](/authentication) — a domain check plus a completed business profile.
+2. From your dashboard's [pricing page](https://developer.clinikehr.com/pricing), select **Contact us to go live**. This opens your own mail client with a message already addressed to ClinikEHR — nothing is sent from the page itself.
+3. ClinikEHR sets your workspace's plan once you're approved. There's nothing further for you to configure — a live key you already created starts working the moment the plan takes effect.
+
+<Warning>
+  A workspace on Sandbox can still create a **live** key today if it is verified — but that key is refused on its very first live call with `workspace_plan_required` until the workspace has a paid plan. Don't rely on the ability to create the key as a sign it will work; check your dashboard's Plan & usage page, or wait for the plan-set confirmation, before pointing production traffic at it.
+</Warning>
+
+## What happens if you exceed your allowance
+
+See [Usage and billing](/usage-and-billing) — exceeding Essential's included requests or connected clinics is billed automatically. Your service is never interrupted mid-month for going over an Essential allowance; only a contracted Enterprise hard cap can refuse a call outright (`quota_exceeded` or `limit_reached`).

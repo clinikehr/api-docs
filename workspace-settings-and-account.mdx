@@ -1,0 +1,77 @@
+---
+title: "Workspace settings and your account"
+description: "Where to change your workspace, verify your organization, and manage your own sign-in."
+icon: "/images/icons/shield-check.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+<Availability keyKind={['organization']} note="These pages belong to the developer dashboard, so they apply to an organization workspace. A clinic's own key is managed from the clinic's Settings → API access." />
+
+The dashboard keeps two kinds of settings apart: the ones that belong to a **workspace** and the ones that belong to **you**.
+
+## Workspace settings
+
+Open **Settings** in the main navigation. On a computer the settings pages are listed in a sidebar on the left; on a phone or tablet the same list is a menu at the top of the page.
+
+| Page | What it is for | Who sees it |
+| --- | --- | --- |
+| **General** | Rename the workspace, see its address, or close it. | Every member |
+| **Verification** | Prove your organization so live keys can be issued, and apply for patient data access. | **Admin** and **Owner** |
+| **Agreements** | The [API Terms of Use](/terms-of-use) your workspace accepts, and the [Data Protection Addendum for Organizations](/data-protection-addendum) if you apply for patient data. | Every member sees them; an **Admin** or **Owner** accepts the terms, an **Owner** the addendum |
+
+### Accepting the API Terms of Use
+
+A workspace accepts the [API Terms of Use](/terms-of-use), which include the [Acceptable Use Policy](/acceptable-use-policy), once, on **Agreements**. Open **Read the terms** to read the full text, then **Accept** and confirm. The page then shows the version, the date and who accepted.
+
+- A **live key cannot be created** until the current terms are accepted. **Create key** says so and links to **Agreements**.
+- A banner across the dashboard tells you while the terms are not accepted. A workspace that already had live keys when the terms were published keeps them working for 30 days from the day the terms were published; the banner and **Agreements** name that date. After it, live keys are paused (requests return [`terms_required`](/errors)) until an **Admin** or **Owner** accepts. Test keys are never affected.
+- If the terms change in a way that matters, a new version is published and the workspace is asked to accept it, with a new 30 days for live keys already in use.
+
+A page is listed only when your role can use it. Ask an owner to raise your role in **Members** if you need a page you cannot see.
+
+On a phone the cards stack, each button spans the width of the screen, and nothing scrolls sideways. On a tablet or computer related fields sit side by side.
+
+## Patient data access
+
+Verification proves your organization is a real business. **Patient data access** is a separate question: may your organization receive patient information through the API at all, and which kinds? A reviewer decides, from an application you make on **Settings → Verification**, in the **Patient data access** card.
+
+Business verification comes first — you can apply only once your workspace is verified. The card at the top of the section shows where you stand:
+
+| Status | What it means |
+| --- | --- |
+| **Not applied** | You have not applied, or you withdrew your application. |
+| **Pending** | Your application is waiting for a reviewer. You can **Withdraw application** until a reviewer picks it up. |
+| **Under review** | A reviewer is looking at it. |
+| **Approved** | Your organization is approved for the kinds of data listed on the card. |
+| **Rejected** | It was not approved. The card shows the reviewer's reason, and you can **Apply again**. |
+| **Revoked** | A reviewer withdrew an approval. The card shows the reason, and you can **Apply again**. |
+
+The card also lists what is still missing, such as business verification or accepting the data-protection addendum on **Agreements**, and shows when you submitted and when it was decided.
+
+To apply, an **Admin** or **Owner** selects **Apply for patient data access** and answers:
+
+- **Purpose** — what your systems will do with patient data.
+- **Data you need** — any of patients, appointments, clinical notes, CRM contacts and activities, drug requests and dispensing history, and the **expected number of patients**. You can be approved only for kinds you ask for, and an approval can cover fewer than you asked for.
+- **Legal basis** (treatment, payment and claims, healthcare operations, the patient's consent, or something else), your **jurisdiction** and **regulator**, an optional registration number, and an optional HIPAA status.
+- A **security and privacy contact** and a **breach-notification contact**, each with a name, email and phone number, and a short description of your **safeguards**.
+- Optionally, a **signed agreement** as a PDF of up to 5 MB. Only our reviewers can open it, and it does not replace accepting the data-protection addendum on **Agreements**.
+
+An approval is checked again on every request. If a reviewer revokes it, requests that need patient data stop being allowed from the next one. Closing a workspace ends its application.
+
+An approval is necessary but not sufficient: a live key can carry a patient-data permission only when patient data is open on the platform, your plan includes it, your organization is approved for that kind of data, and you have accepted the current [Data Protection Addendum for Organizations](/data-protection-addendum) — see [Permissions](/permissions#patient-data-scopes--gated-behind-the-api-add-on-and-the-api-data-agreement).
+
+## Your account
+
+Open the menu with your picture at the top right and choose **Profile and Settings**. This is **you**, not a workspace: the same details apply in every workspace you belong to, and they are the same account you use in the ClinikEHR app.
+
+- **Profile** — your name, title and phone number. Your email address is shown but cannot be changed here.
+- **Security** — change your password, set up two-factor authentication or a passkey, and choose whether to be emailed about new sign-ins.
+- **Email preferences** — choose whether you receive product and account emails and marketing emails. Security alerts, password resets and receipts are always sent.
+- **Sign out** — end your sign-in.
+
+<Info>
+  The dashboard does not list or end your other sign-ins one by one. **Sign out** ends the current one.
+</Info>
+
+Professional details that matter in a clinic — licences, identifiers and signatures — are managed in the ClinikEHR app and do not appear in the developer dashboard.

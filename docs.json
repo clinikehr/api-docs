@@ -1,0 +1,219 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "ClinikEHR API",
+  "description": "Reference and guides for the ClinikEHR API — read a clinic's own inventory from your own systems.",
+  "colors": {
+    "primary": "#0D9488",
+    "light": "#2DD4BF",
+    "dark": "#0F766E"
+  },
+  "favicon": "/favicon.png",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://clinikehr.com"
+  },
+  "appearance": {
+    "default": "system"
+  },
+  "fonts": {
+    "family": "Geist"
+  },
+  "styling": {
+    "eyebrows": "section",
+    "codeblocks": "system"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Help Center",
+        "href": "https://help.clinikehr.com"
+      },
+      {
+        "label": "Status",
+        "href": "https://status.clinikehr.com"
+      },
+      {
+        "label": "Contact support",
+        "href": "mailto:support@clinikehr.com"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Open developer portal",
+      "href": "https://developer.clinikehr.com"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude"
+    ]
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Introduction",
+        "pages": [
+          "index",
+          "quickstart",
+          "sdks-and-postman"
+        ]
+      },
+      {
+        "group": "Building an integration",
+        "pages": [
+          "authentication",
+          "permissions",
+          "pagination",
+          "errors",
+          "rate-limits"
+        ]
+      },
+      {
+        "group": "Resources",
+        "pages": [
+          "inventory",
+          "conditions",
+          "allergies",
+          "medications",
+          "providers",
+          "care-providers",
+          "encounters",
+          "referrals",
+          "insurance",
+          "connections"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "stock-bands",
+          "verifying-webhook-signatures",
+          "retries-and-idempotency",
+          "workspace-settings-and-account",
+          "uploading-partner-codes",
+          "drug-requests",
+          "reviewing-outside-submissions",
+          "automatic-acceptance",
+          "fhir"
+        ]
+      },
+      {
+        "group": "Plans and billing",
+        "pages": [
+          "plans-and-pricing",
+          "usage-and-billing"
+        ]
+      },
+      {
+        "group": "API reference",
+        "openapi": "openapi/ehr-api.v1.yaml",
+        "pages": [
+          "GET /v1/me",
+          "GET /v1/connections",
+          "GET /v1/clinics/{clinic_id}/inventory/locations",
+          "GET /v1/clinics/{clinic_id}/inventory/items",
+          "GET /v1/clinics/{clinic_id}/inventory/items/{item_id}",
+          "POST /v1/clinics/{clinic_id}/inventory/availability",
+          "GET /v1/clinics/{clinic_id}/inventory/stock",
+          "GET /v1/listings/pharmacies",
+          "POST /v1/listings/search",
+          "GET /v1/clinics/{clinic_id}/listing/items",
+          "GET /v1/clinics/{clinic_id}/listing/profile"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "versioning"
+        ]
+      },
+      {
+        "group": "Legal",
+        "pages": [
+          "terms-of-use",
+          "acceptable-use-policy",
+          "data-protection-addendum"
+        ]
+      },
+      {
+        "group": "Changelog",
+        "pages": [
+          "changelog/index"
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "website": "https://clinikehr.com",
+      "x": "https://x.com/clinikehr",
+      "linkedin": "https://www.linkedin.com/company/clinikehr"
+    },
+    "links": [
+      {
+        "header": "Product",
+        "items": [
+          {
+            "label": "ClinikEHR",
+            "href": "https://clinikehr.com"
+          },
+          {
+            "label": "Pricing",
+            "href": "https://clinikehr.com/pricing"
+          }
+        ]
+      },
+      {
+        "header": "Resources",
+        "items": [
+          {
+            "label": "Help Center",
+            "href": "https://help.clinikehr.com"
+          },
+          {
+            "label": "Developer portal",
+            "href": "https://developer.clinikehr.com"
+          },
+          {
+            "label": "Status",
+            "href": "https://status.clinikehr.com"
+          }
+        ]
+      },
+      {
+        "header": "Company",
+        "items": [
+          {
+            "label": "Contact support",
+            "href": "mailto:support@clinikehr.com"
+          },
+          {
+            "label": "Privacy",
+            "href": "https://clinikehr.com/privacy"
+          },
+          {
+            "label": "Terms",
+            "href": "https://clinikehr.com/terms"
+          }
+        ]
+      }
+    ]
+  },
+  "seo": {
+    "metatags": {
+      "og:site_name": "ClinikEHR API"
+    },
+    "indexing": "navigable"
+  },
+  "integrations": {
+    "posthog": {
+      "apiKey": "phc_817t39VWvmzFeNxvLBBOVQM0CnsuX5INS2qERVGXmIY",
+      "apiHost": "https://eu.i.posthog.com"
+    }
+  }
+}

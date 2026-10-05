@@ -1,0 +1,143 @@
+---
+title: "FHIR R4"
+description: "Content-negotiated FHIR R4 for patients, appointments, notes and medicines — and patient import."
+icon: "/images/icons/code.svg"
+---
+
+FHIR is a **representation**, not a second API. Every resource below is the SAME record, on the
+SAME endpoint, with the SAME scope, entitlement, clinic scoping and audit trail as our plain JSON
+— only the shape on the wire changes, selected by a standard header.
+
+## Reading a resource as FHIR
+
+Send `Accept: application/fhir+json` on any of these existing GET endpoints:
+
+| Resource | Endpoint |
+| --- | --- |
+| Patient | `GET /v1/clinics/{clinic_id}/patients`, `GET /v1/clinics/{clinic_id}/patients/{id}` |
+| Appointment | `GET /v1/clinics/{clinic_id}/appointments`, `GET /v1/clinics/{clinic_id}/appointments/{id}` |
+| DocumentReference (a clinical note) | `GET /v1/clinics/{clinic_id}/notes?patient_id=...`, `GET /v1/clinics/{clinic_id}/notes/{id}` |
+| AllergyIntolerance (an allergy) | `GET /v1/clinics/{clinic_id}/allergies?patient_id=...`, `GET /v1/clinics/{clinic_id}/allergies/{id}` |
+| ServiceRequest (a referral) | `GET /v1/clinics/{clinic_id}/referrals?patient_id=...`, `GET /v1/clinics/{clinic_id}/referrals/{id}` |
+| MedicationStatement (a medicine the patient reports) | `GET /v1/clinics/{clinic_id}/medication-statements?patient_id=...`, `GET /v1/clinics/{clinic_id}/medication-statements/{id}` |
+| MedicationRequest (a prescription) | `GET /v1/clinics/{clinic_id}/prescriptions?patient_id=...`, `GET /v1/clinics/{clinic_id}/prescriptions/{id}` |
+| Condition (a problem list entry) | `GET /v1/clinics/{clinic_id}/conditions?patient_id=...`, `GET /v1/clinics/{clinic_id}/conditions/{id}` |
+| Coverage (a patient's insurance) | `GET /v1/clinics/{clinic_id}/coverages?patient_id=...`, `GET /v1/clinics/{clinic_id}/coverages/{id}` |
+| Encounter (a visit note, without its text) | `GET /v1/clinics/{clinic_id}/encounters?patient_id=...`, `GET /v1/clinics/{clinic_id}/encounters/{id}` |
+| Practitioner (a clinic clinician) | `GET /v1/clinics/{clinic_id}/providers`, `GET /v1/clinics/{clinic_id}/providers/{id}` |
+| Organization (an enabled insurance payer) | `GET /v1/clinics/{clinic_id}/payers`, `GET /v1/clinics/{clinic_id}/payers/{id}` |
+| MedicationKnowledge (a medicine) | `GET /v1/clinics/{clinic_id}/inventory/items`, `GET /v1/clinics/{clinic_id}/inventory/items/{id}` |
+
+A list becomes a `Bundle` of `type: searchset`, with `link` entries for the current page and, when
+there's another page, the next one — the same page you'd get back from `starting_after` on the
+plain JSON response. A single read returns the bare resource.
+
+## Writing a resource as FHIR
+
+Send `Content-Type: application/fhir+json` on:
+
+- `POST` a **Patient** to create one, or `PATCH` it to update one. Updates are `PATCH`, never `PUT`.
+- Patient writes **do not carry** `allergies`, `current_medications` or `chronic_conditions`: they are refused. See [Allergies](/allergies) and [Conditions](/conditions).
+- `POST` an **Appointment** to create one, or `PATCH` it to update one — the appointment
+  must reference a `HealthcareService` (your clinic's service) in `basedOn`; there is no
+  unscheduled-service appointment.
+- `POST` a **DocumentReference** to create a note — always lands as a **draft**
+  (`docStatus: preliminary`). Nothing in FHIR can sign a note; that stays a clinician action in the
+  product itself. `docStatus: final` (or anything else) on a create is refused.
+
+- `POST` a **Condition** to send one for review, or `PATCH` it to ask for a change. The response is `202 Accepted`:
+  a clinician decides whether it reaches the chart. See [Conditions](/conditions).
+- **ServiceRequest is read-only as FHIR.** Send and change referrals with the JSON routes in [Referrals](/referrals); a FHIR body is refused with an `OperationOutcome`.
+- **Encounter is read-only as FHIR.** Open and change visits with the JSON routes in [Encounters](/encounters); a FHIR body is refused with an `OperationOutcome`. A visit whose type is not known is shown with the FHIR code for unknown, never a guessed type.
+- **MedicationStatement and MedicationRequest are read-only as FHIR.** Send and change reported medicines with the JSON routes in [Medications](/medications); prescriptions cannot be written at all. A FHIR body is refused with an `OperationOutcome`.
+- **AllergyIntolerance is read-only as FHIR.** Send and change allergies with the JSON routes in [Allergies](/allergies); a FHIR body is refused with an `OperationOutcome`.
+
+The body is converted to the exact same shape our plain JSON body is, then validated and written
+through the identical path — a FHIR write and a JSON write can never disagree about what a record
+looks like afterward.
+
+**A write is answered in our plain JSON shape, not as FHIR**, even when you sent a FHIR body. To read
+the record back as FHIR, `GET` it with `Accept: application/fhir+json`.
+
+**An element that would change a record's meaning without anywhere for it to go is refused, not
+silently dropped.** On `Patient`: `gender: "unknown"`, `deceasedBoolean`/`deceasedDateTime`,
+`multipleBirthBoolean`/`multipleBirthInteger`, and `Patient.link` (merging two records is a
+staff-reviewed decision, never something an API write can assert). A refusal on a FHIR request
+comes back as an `OperationOutcome`, not our usual error shape — see [Errors](/errors) for how the
+same underlying error code appears in both.
+
+## Automatic acceptance
+
+An allergy, condition or reported medicine that a clinic accepted automatically is rendered with `verificationStatus`
+`unconfirmed`, plus an `accepted_by` extension (a string, `automatic`), until a clinician marks it reviewed. After that
+it reads `confirmed`. It is never presented as clinician-confirmed before then. See [Automatic acceptance](/automatic-acceptance).
+
+## What isn't here
+
+- No `_include`/`_revinclude` on any search.
+- No FHIR-standard search parameters. Each resource is searched with the query parameters its
+  endpoint really accepts, under our own names (for example `patient_id`, not `patient`). They are
+  listed below, and in the `CapabilityStatement`. A search is paged with `limit` and
+  `starting_after`; a `Bundle` carries a `next` link and no `total`, because the total is not computed.
+- No general `/fhir` passthrough, and no arbitrary FHIR resource type.
+- Coverage and payer `Organization` are read-only in FHIR: a FHIR body on `POST` or `PATCH` is refused with an `OperationOutcome`, so add or change a coverage in the plain JSON shape. See [Insurance](/insurance).
+- **Practitioner is read-only.** The provider directory cannot be written by any request, in any shape. See [Providers](/providers). `PractitionerRole` is not available yet: a clinician's role and specialties are carried on the `Practitioner`.
+- **Outside care providers have no FHIR shape.** They are JSON only, and a FHIR body or `Accept: application/fhir+json` on those routes is refused. See [Outside care providers](/care-providers).
+- No `Location`, `Slot`, `Schedule`, or `HealthcareService`
+  create/update through FHIR — read/write for those stays on their own plain endpoints as they
+  ship.
+- No exact stock quantity in FHIR — a medicine's availability is carried as a coarse band
+  (`out` / `low` / `in_stock`), the same one the plain JSON endpoint returns, never an exact count.
+- No sign, lock, or finalize on a note, from any door.
+
+### Search parameters
+
+| Resource | Parameters |
+| --- | --- |
+| Patient | `email`, `phone`, `mrn`, `updated_since` |
+| Appointment | `patient_id`, `clinician_id`, `status`, `from`, `to`, `updated_since` |
+| DocumentReference | `patient_id` (required) |
+| AllergyIntolerance | `patient_id` (required), `review_status`, `clinical_status`, `updated_since` |
+| MedicationStatement | `patient_id` (required), `review_status`, `status`, `updated_since` |
+| ServiceRequest | `patient_id` (required), `review_status`, `status`, `updated_since` |
+| MedicationRequest | `patient_id` (required), `status`, `updated_since` |
+| Condition | `patient_id` (required), `review_status`, `updated_since` |
+| Coverage | `patient_id` (required), `verification_status`, `updated_since` |
+| Encounter | `patient_id` (required), `status`, `updated_since` |
+| Practitioner (provider) | `q` |
+| Organization (payer) | `q` |
+| MedicationKnowledge | `q`, `barcode`, `category`, `updated_since` |
+
+`GET /v1/metadata` returns a FHIR `CapabilityStatement` listing exactly what's supported — treat it
+as the source of truth over this page if the two ever disagree.
+
+## Importing a list of patients
+
+You can bring a list of patients in from another system at once, instead of creating them one at a
+time.
+
+**Accepted formats:** a FHIR `Bundle` of `Patient` resources, an NDJSON file (one `Patient` object
+per line), or a plain JSON array in our own patient shape. A file may hold at most 100 rows and
+10 MB.
+
+**What happens:**
+
+1. Every row is checked first — required fields, valid values, dates that make sense. Nothing is
+   written yet.
+2. **Any row with an error stops the whole file.** You get back exactly which row, which field, and
+   why — never the value that failed, and never a partial import. Fix the file and upload again, or
+   choose to import only the rows that passed.
+3. **A clean file imports automatically.** Each patient is created the same way a single create
+   would be. A possible duplicate (matching an existing patient closely) is still created — never
+   silently merged, never silently refused — and flagged for your staff to review in the product.
+4. **Re-uploading the exact same file is a no-op** — you'll get told it was already imported, not a
+   second copy of every patient.
+5. An import never sends a message to a patient and never starts an automation on their behalf.
+
+**Allergies, current medications and chronic conditions are not accepted in a patient import**, or on a patient create or
+update. A row that carries `allergies`, `current_medications` or `chronic_conditions` is refused. Send allergies with
+[Allergies](/allergies) and conditions with [Conditions](/conditions); both are reviewed by a clinician before they
+reach the chart. Current medications cannot be set through the API.
+
+You'll get back four counts when it finishes: how many were created, how many were flagged as a
+possible duplicate, how many were skipped because they were already imported, and how many failed.

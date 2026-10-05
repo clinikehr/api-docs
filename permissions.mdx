@@ -1,0 +1,115 @@
+---
+title: "Permissions"
+description: "The scopes a key can be given today, what each one exposes, and how a missing one fails."
+icon: "/images/icons/shield-check.svg"
+---
+
+Every key is created with a specific set of scopes — chosen by the clinic when it creates its own key, or granted by a clinic when it approves an organization's [connection](/connections) request. A key can only do what it was given — there's no way to request more from inside a request, and no way to grant yourself something nobody chose.
+
+<Info>
+  Inventory and listing scopes need only a plan with API access. Patient-data scopes (patients,
+  appointments, clinical notes, drug requests, dispensing history) additionally need the clinic's API add-on and an
+  accepted API data agreement — see [the overview](/index#patient-records-appointments-clinical-notes-and-drug-requests).
+  No scope exposes a sale's price or total, or who served the customer.
+</Info>
+
+<Info>
+  A **test** key may hold the patient-data scopes: it reaches only your workspace's sandbox, which holds invented
+  patients, notes and appointments. The add-on and agreement above apply to a **live** key.
+</Info>
+
+<Info>
+  An **organization's** live key can carry a patient-data scope only when patient data is open on the platform, the
+  workspace plan includes it, your organization is **approved for that kind of data** (apply on **Settings →
+  Verification**) and you have accepted the current data-protection addendum on **Agreements**. In the **Create key**
+  panel a scope that is not yet available is greyed out, and hovering it says the first thing that is missing. The same
+  approval is checked on every request, so a revoked approval stops access with the next one. **Connect to a clinic**
+  works the same way: an approved organization can request exactly the kinds it is approved for.
+</Info>
+
+## Inventory scopes — one clinic's own data
+
+| Scope | Read/write | Gives you |
+| --- | --- | --- |
+| `inventory.availability:read` | Read-only | Whether an item is in stock, running low, or out — a **band**, not a number. See [Stock bands](/stock-bands). |
+| `inventory.items:read` | Read-only | Catalogue detail: name, strength, form, category, identifiers (barcode, etc.), and retail price. |
+| `inventory.stock:read` | Read-only | Exact quantities, per location and lot. This is the most sensitive of the three — most integrations don't need it. |
+| `inventory.items:write` | Write | Create or update a catalogue item, and register your own identifier for one — see [Uploading your own medicine codes](/uploading-partner-codes). |
+| `inventory.stock:write` | Write | Receive stock, adjust a quantity, or record a transfer — through the same ledger the clinic's own staff use. |
+
+## Insurance payers
+
+| Scope | Read/write | Gives you |
+| --- | --- | --- |
+| `payers:read` | Read-only | The insurance payers the clinic has enabled, with the `id` needed to attach a coverage to one. It holds no patient information, so it is not a patient-data scope. See [Insurance](/insurance#payers). |
+
+## Providers
+
+| Scope | Read/write | Gives you |
+| --- | --- | --- |
+| `providers:read` | Read-only | The clinic's clinical staff directory: name, role, specialty, NPI and licence. It holds no contact details and no patient information, so it is not a patient-data scope. There is no write permission. See [Providers](/providers). |
+
+## Patient-data scopes — gated behind the API add-on and the API data agreement
+
+An organization is approved by **kind of data**; each kind covers these scopes:
+
+| Kind in the application | Scopes |
+| --- | --- |
+| Patients | `patients:read`, `patients:write` |
+| Appointments | `appointments:read`, `appointments:write` |
+| Clinical notes | `notes:read`, `notes:write` |
+| CRM contacts and activities | `crm.contacts:read`, `crm.contacts:write`, `crm.activities:read`, `crm.activities:write` |
+| Allergies | `allergies:read`, `allergies:write` |
+| Medications | `medications:read`, `medications:write` |
+| Referrals | `referrals:read`, `referrals:write` |
+| Conditions | `conditions:read`, `conditions:write` |
+| Insurance coverage | `coverage:read`, `coverage:write` |
+| Outside care team | `care_providers:read`, `care_providers:write` |
+| Visits | `encounters:read`, `encounters:write` |
+| Drug requests | `requests:read`, `requests:write` |
+| Dispensing history | `dispensing:read` |
+
+| Scope | Read/write | Gives you |
+| --- | --- | --- |
+| `patients:read` / `patients:write` | Read / write | Demographics and identifiers for in-scope patients; write also creates/updates a patient. |
+| `appointments:read` / `appointments:write` | Read / write | Appointments for in-scope patients; write books, reschedules or cancels. |
+| `notes:read` / `notes:write` | Read / write | A patient's clinical notes; write creates a DRAFT only — never signs, locks, or finalizes one. A note created through the API cannot carry treatment, service or diagnosis blocks; they are refused with `unknown_field`. |
+| `allergies:read` / `allergies:write` | Read / write | A patient's allergies and intolerances; write **sends an allergy for clinician review**. It never changes the chart on its own, unless the clinic has chosen to accept your new allergies automatically — see [Allergies](/allergies) and [Automatic acceptance](/automatic-acceptance). |
+| `medications:read` / `medications:write` | Read / write | The medicines a patient reports, and the prescriptions written for them (read-only, drug, dose, frequency and status only); write **sends a reported medicine for clinician review**. It never changes the chart on its own, and no key can write a prescription — see [Medications](/medications). |
+| `referrals:read` / `referrals:write` | Read / write | The referrals a clinic has received for a patient; write **sends a referral for the clinic to review**, and changes or takes back one you sent only while the clinic has not acted on it. No key can accept, decline, book, complete or cancel a referral: those are the clinic's decisions — see [Referrals](/referrals). |
+| `conditions:read` / `conditions:write` | Read / write | A patient's problem list and diagnoses; write **sends a condition for clinician review**. It never changes the chart on its own — see [Conditions](/conditions). |
+| `coverage:read` / `coverage:write` | Read / write | A patient's insurance coverage: payer, member and group identifiers, dates, network status. Write adds or updates one, but a coverage you add is **inactive until staff confirm it** — see [Insurance](/insurance). |
+| `care_providers:read` / `care_providers:write` | Read / write | The outside doctors, referrers and specialists a patient names; write adds one, and changes or removes **only the contacts your app added**. The clinic's own and other apps' contacts are read-only to you — see [Outside care providers](/care-providers). |
+| `encounters:read` / `encounters:write` | Read / write | A patient's visits as the clinic documents them: status, dates, reason for the visit and clinician, never clinical text or billing. Write **opens a draft visit** for a clinician to complete, and changes the details of a draft your app opened until a person touches it. It never orders, bills, signs, locks or finalises — see [Encounters](/encounters). |
+| `requests:read` / `requests:write` | Read / write | Drug requests sent to a clinic — see [Drug requests](/drug-requests). |
+| `dispensing:read` | Read-only | The dispensing history of an enrollee you are linked to, and the refill and duplicate-dispensing flags a pharmacist has recorded for linked enrollees. Never a price, never another customer, never a staff member's name. |
+
+## Listing scopes — the pharmacy network
+
+These apply only to an **organization's** key, and only for clinics that have connected to you — see [Connections](/connections#network-search).
+
+| Scope | Read/write | Gives you |
+| --- | --- | --- |
+| `listing.profile:read` | Read-only | A pharmacy's public listing profile: name, address, hours, map location. |
+| `listing.availability:read` | Read-only | Availability bands across the network, including `unknown` where a pharmacy's own point-of-sale hasn't synced recently. |
+
+## Requesting the right one
+
+Ask for only what your integration actually uses. A storefront "in stock" badge needs `inventory.availability:read`; it almost never needs `inventory.stock:read`. This isn't just tidy — a key or a connection with fewer scopes does less damage if it ever leaks.
+
+## What happens if a scope is missing
+
+Calling an endpoint your key isn't permitted for returns a `403`:
+
+```json
+{
+  "type": "https://developer.clinikehr.com/errors/scope_missing",
+  "title": "Scope missing",
+  "status": 403,
+  "code": "scope_missing",
+  "detail": "This request requires the scope \"inventory.stock:read\", which the API key does not carry.",
+  "request_id": "req_01example"
+}
+```
+
+See [Errors](/errors) for the full error shape and the other codes you may see, including `plan_required` — which looks similar but means the **clinic's** plan doesn't include this resource at all, regardless of what the key was granted.

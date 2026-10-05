@@ -1,0 +1,135 @@
+---
+title: "Outside care providers"
+description: "Read the outside doctors, referrers and specialists a patient names, and add or maintain the contacts your app added."
+icon: "/images/icons/link.svg"
+---
+
+An **outside care provider** is a clinician or practice a patient names who is not on the clinic's own team: their primary
+care doctor, the clinician who referred them, a specialist. It is a contact record. Nothing here gives that clinician
+access to anything.
+
+It is different from the [provider directory](/providers), which lists the clinic's own clinicians. In ClinikEHR the
+list appears as **Outside care team** on the client's record.
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List a patient's outside providers | `GET /v1/clinics/{clinic_id}/care-providers?patient_id=…` | `care_providers:read` |
+| Read one | `GET /v1/clinics/{clinic_id}/care-providers/{care_provider_id}` | `care_providers:read` |
+| Add one | `POST /v1/clinics/{clinic_id}/care-providers` | `care_providers:write` |
+| Change one your app added | `PATCH /v1/clinics/{clinic_id}/care-providers/{care_provider_id}` | `care_providers:write` |
+| Remove one your app added | `DELETE /v1/clinics/{clinic_id}/care-providers/{care_provider_id}` | `care_providers:write` |
+
+These are patient-data permissions: the API add-on, the agreement and, for an organization, the approval for the
+**Outside care team** kind all apply. See [Permissions](/permissions).
+
+A patient the clinic has restricted, or a contact that does not exist, returns `404` with `code: "not_found"`. The two
+are never told apart. See [Errors](/errors).
+
+## What an outside care provider looks like
+
+```json
+{
+  "id": "8b3e1f52-8888-4d9c-8e3f-6789abcdef01",
+  "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "type": "pcp",
+  "name": "Dr. Lena Ortiz",
+  "practice_name": "Riverside Family Practice",
+  "specialty": "Family medicine",
+  "npi": "1234567893",
+  "phone": "+1 555 0100",
+  "fax": null,
+  "address": "12 River Road, Albany, NY",
+  "is_primary": true,
+  "source": "api",
+  "editable": true,
+  "origin_assistant_name": "Acme Intake",
+  "created_at": "2026-09-30T14:02:00Z",
+  "updated_at": "2026-09-30T14:02:00Z"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `type` | `pcp` (primary care), `referring`, `specialist` or `other`. |
+| `is_primary` | Whether this is the patient's primary contact of that type. Only one contact of each type is primary. |
+| `npi` | Ten digits, or `null`. Only the shape is checked. |
+| `source` | `api` if an app added it, `clinic` if the clinic's staff or an intake form did. |
+| `editable` | `true` only when **your app** added it, so you can switch off the control without trying. |
+| `origin_assistant_name` | The name the sender gave, for an `api` contact. |
+
+The clinic's private notes are never returned.
+
+## List contacts
+
+| Query parameter | Meaning |
+| --- | --- |
+| `patient_id` | **Required.** The patient to list for. |
+| `type` | Only contacts of that type. |
+| `updated_since` | RFC 3339 timestamp: only contacts changed since then. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+The list holds **every** contact for the patient, whoever added it, so you can show the whole picture.
+
+## Add a contact
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/care-providers" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 5a3f6e1c-8d2b-4c7a-9f10-0b1c2d3e4f5a" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "patient_id": "PATIENT_ID",
+        "name": "Dr. Lena Ortiz",
+        "type": "pcp",
+        "practice_name": "Riverside Family Practice",
+        "npi": "1234567893",
+        "origin_assistant_name": "Acme Intake"
+      }'
+```
+
+The answer is `201 Created` with the contact. **`Idempotency-Key` is required on `POST`** and optional on `PATCH`. See
+[Retries and duplicates](/retries-and-idempotency).
+
+You may send `patient_id`, `name`, `type`, `practice_name`, `specialty`, `npi`, `phone`, `fax`, `address`, `is_primary`
+and `origin_assistant_name`. `patient_id`, `name` and `type` are required. A field this list does not name is refused with
+`invalid_request`, and the error names the field. The clinic's `notes` cannot be sent.
+
+A contact is saved straight away: it does not wait for a clinician. It appears at the clinic with **From** and your
+system's name.
+
+## You change only what your app added
+
+This is the rule to build around. A contact is **yours** when your app added it. For a workspace key that means any key
+in the same organization, so rolling a key does not strand its contacts. For a clinic's own key it means that clinic.
+
+- `PATCH` and `DELETE` work on **your own** contacts.
+- On a contact the clinic's staff or an intake form added, or one another app added, they are refused with
+  `409 care_provider_clinic_managed`. The contact is still readable. Only the clinic can change it.
+- The clinic's staff may edit or remove any contact, including yours.
+
+The `editable` field tells you in advance. See [Errors](/errors#care_provider_clinic_managed).
+
+## Change a contact
+
+Send any of `name`, `type`, `practice_name`, `specialty`, `npi`, `phone`, `fax`, `address` and `is_primary`, at least
+one. `patient_id` cannot be changed. The answer is `200` with the contact. Each value must be a non-empty string (or `true`/`false` for `is_primary`): **a key cannot clear an optional field** such as `phone` or `fax`. To blank one, ask the clinic to edit the contact, or remove the contact and add it again.
+
+## Remove a contact
+
+`DELETE` answers `204 No Content` with no body. A contact is a reference the clinic holds, not a clinical record, so it is
+removed rather than marked. The clinic's audit trail still records that it was removed. Deleting a contact that is
+already gone returns `404`.
+
+## As FHIR
+
+Outside care providers are JSON only. There is no FHIR representation for them, and a FHIR body or an
+`Accept: application/fhir+json` header on these routes is refused. See [FHIR](/fhir).
+
+## On the Patients routes
+
+A patient read by `GET /v1/clinics/{clinic_id}/patients` shows `care_providers` as a read-only field. Writing it there
+is refused. Use these routes instead.
+
+## Test keys
+
+A test key sees one fictional primary care doctor for each sandbox patient, plus the contacts it adds itself.

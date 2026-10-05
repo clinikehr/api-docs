@@ -1,0 +1,96 @@
+---
+title: "Quickstart"
+description: "Get a key, make your first request, and read back a clinic's inventory in a few minutes."
+icon: "/images/icons/rocket.svg"
+---
+
+This walks through the fastest path: a **clinic's own key**, reading its own inventory. If you're building something that reaches more than one clinic, see [the two ways to use this API](/index#two-ways-to-use-this-api) instead — the request shapes below are identical either way.
+
+## 1. Get a key
+
+Keys aren't created on this site. Ask the clinic you're integrating with to open **Settings → API access** in their own ClinikEHR workspace, turn on **Allow API access**, and create a key with the permissions your integration needs (see [Permissions](/permissions)). The full key is shown to them **once** — ask them to send it to you over a channel you both trust, never by email in plain text if you can avoid it.
+
+A key looks like this:
+
+```
+ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…
+```
+
+<Warning>
+  A clinic's own key is always `ehr_live_` — it has no test mode, because it never has anything to test against but the clinic's own real data. Handle it like a password from the moment you receive it. (Building for more than one clinic instead? A [developer portal](https://developer.clinikehr.com) organization key gets you an `ehr_test_` sandbox key immediately, with no real data at risk — see [Authentication](/authentication).)
+</Warning>
+
+## 2. Note the clinic ID
+
+Every data request is scoped to one clinic, identified in the URL. The clinic that gave you the key can tell you their clinic ID, or you can read it back from the key itself:
+
+```bash
+curl https://api.clinikehr.com/v1/me \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": {
+    "key_id": "key_ExampleKeyId00000000",
+    "clinic_id": "YOUR_CLINIC_ID",
+    "environment": "live",
+    "scopes": ["inventory.availability:read", "inventory.items:read"]
+  }
+}
+```
+
+## 3. Make your first inventory request
+
+List the clinic's catalogue items:
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/items?limit=25" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "item_01example",
+      "name": "Amoxicillin 500mg capsules",
+      "generic_name": "Amoxicillin",
+      "strength": "500mg",
+      "dosage_form": "capsule",
+      "category": "Antibiotics",
+      "item_type": "medication",
+      "unit_of_measure": "capsule",
+      "is_active": true,
+      "identifiers": [
+        { "system": "gtin", "value": "6001234567890" }
+      ],
+      "retail_price": { "amount": "1200.00", "currency": "NGN" },
+      "updated_at": "2026-09-20T10:15:00Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+## 4. Handle errors
+
+Every failure comes back as `application/problem+json` with a stable `code` you can branch on in code — see [Errors](/errors). A wrong or revoked key, for example, is a `401` with `code: "invalid_key"`.
+
+## Next steps
+
+<Columns cols={2}>
+  <Card title="Authentication" icon="/images/icons/key.svg" href="/authentication">
+    Key format, headers, and what each failure means.
+  </Card>
+  <Card title="Inventory" icon="/images/icons/boxes-stacked.svg" href="/inventory">
+    Every endpoint available today, with full examples.
+  </Card>
+  <Card title="Pagination" icon="/images/icons/layer-group.svg" href="/pagination">
+    Reading a list all the way to the end.
+  </Card>
+  <Card title="Rate limits" icon="/images/icons/gauge.svg" href="/rate-limits">
+    How much you can call, and how to tell when you're close.
+  </Card>
+</Columns>

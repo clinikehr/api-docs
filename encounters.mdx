@@ -1,0 +1,141 @@
+---
+title: "Encounters"
+description: "Read a patient's visits as the clinic documents them, and open a draft visit for a clinician to complete."
+icon: "/images/icons/file-signature.svg"
+---
+
+An **encounter** is a visit, as the clinic documents it: one **visit note**. Every clinical note a clinic writes about a
+patient is an encounter, and an encounter's `id` is the same as the note's `id`, so you can read the note's text with
+[Notes](/index#patient-records-appointments-clinical-notes-and-drug-requests) when your key may.
+
+An encounter carries **no clinical text**. It tells you that a visit happened or is open, its type, when it started and
+ended, the reason given for it, who the clinician is, and where it came from. The note itself, its diagnoses, treatment
+and signatures stay behind `notes:read`, and billing is never part of it.
+
+**Opening an encounter opens a draft visit.** It appears in the clinic's consultation list for a clinician to complete.
+Nothing is ordered, prescribed, billed, signed, locked or finalised by your request, and no request can do any of those.
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List a patient's visits | `GET /v1/clinics/{clinic_id}/encounters?patient_id=…` | `encounters:read` |
+| Read one | `GET /v1/clinics/{clinic_id}/encounters/{encounter_id}` | `encounters:read` |
+| Open a draft visit | `POST /v1/clinics/{clinic_id}/encounters` | `encounters:write` |
+| Change the details of a draft your app opened | `PATCH /v1/clinics/{clinic_id}/encounters/{encounter_id}` | `encounters:write` |
+
+These are patient-data permissions: the API add-on, the agreement and, for an organization, the approval for the
+**Visits** kind all apply. See [Permissions](/permissions).
+
+A patient the clinic has restricted, a visit that does not exist, and a note the clinic has marked sensitive all return
+`404` with `code: "not_found"`. They are never told apart, and a sensitive note is never listed. See [Errors](/errors).
+
+## What an encounter looks like
+
+```json
+{
+  "id": "4c9e2a10-3333-4d5e-8f60-abcdef012345",
+  "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "kind": "consultation",
+  "status": "draft",
+  "class": "ambulatory",
+  "period": { "start": "2026-10-04T09:00:00Z", "end": null },
+  "reason": "Follow-up after a change of medicine",
+  "clinician_id": "7f1b2c3d-4444-4e5f-9a60-0123456789ab",
+  "source": "api",
+  "origin_assistant_name": "Acme Scheduler",
+  "review_status": "pending",
+  "created_at": "2026-10-04T08:55:00Z",
+  "updated_at": "2026-10-04T08:55:00Z"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `kind` | Always `consultation`. Triage, ward and appointment records are not encounters here. |
+| `status` | `draft` while the visit note is still open, `completed` once a clinician has signed or finalised it. |
+| `class` | `ambulatory`, `emergency`, `inpatient`, `virtual` or `home_health`, or `null` when nobody has said. |
+| `period` | `start` and `end`, each `null` until known. |
+| `reason` | The short reason given for the visit, or `null`. It is an administrative reason, not note text. |
+| `clinician_id` | The clinician the visit belongs to, or `null`. The same id the [Providers](/providers) directory lists. |
+| `source` | `clinic` for a visit the clinic's staff documented, `api` for one an app opened. |
+| `origin_assistant_name` | The name an app gave when it opened the visit, or `null`. |
+| `review_status` | `confirmed` for a visit documented by staff, and for an app-opened draft once a clinician has reviewed it. `pending` until then. |
+
+A visit documented by staff before this release has no `class`, `period` or `reason`: they read as `null`.
+
+## List visits
+
+| Query parameter | Meaning |
+| --- | --- |
+| `patient_id` | **Required.** The patient to list for. |
+| `status` | `draft` or `completed`. Anything else is refused with `invalid_request`. |
+| `updated_since` | RFC 3339 timestamp: only visits changed since then. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+## Open a draft visit
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/encounters" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 5a3f6e1c-8d2b-4c7a-9f10-0b1c2d3e4f5a" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "patient_id": "PATIENT_ID",
+        "clinician_id": "CLINICIAN_ID",
+        "class": "ambulatory",
+        "started_at": "2026-10-04T09:00:00Z",
+        "reason": "Follow-up after a change of medicine",
+        "origin_assistant_name": "Acme Scheduler"
+      }'
+```
+
+The answer is `201 Created` with the encounter. **`Idempotency-Key` is required.** Repeating a request with the same key
+and the same body returns the same encounter with `idempotent_replay: true`; the same key with a different body is
+refused. See [Retries and duplicates](/retries-and-idempotency).
+
+You may send `patient_id`, `clinician_id`, `class`, `started_at`, `ended_at`, `reason` and `origin_assistant_name`.
+`patient_id` and `clinician_id` are required, and `clinician_id` must be a clinician who may hold a note at that clinic.
+**There is no field for note text**: a field this list does not name, `note_content` included, is refused with
+`invalid_request` and the error names the field. `ended_at` cannot be before `started_at`, and `reason` is at most 500
+characters.
+
+What a clinician then sees:
+
+- A **draft** note for the patient, marked **From** your app's name and **not yet reviewed**. It is in the clinic's
+  consultation list, waiting to be completed.
+- The visit details you sent, under **Visit details** on the note.
+- The note is **empty**. Nothing is ordered, prescribed or billed by opening it, and the clinician writes the note.
+
+## Change a visit's details
+
+`PATCH` accepts `class`, `started_at`, `ended_at` and `reason`, at least one. Each value you send replaces the current
+one. `patient_id` and `clinician_id` cannot be changed.
+
+You can change **only a draft your own app opened, and only until a person has touched it**:
+
+| Situation | Answer |
+| --- | --- |
+| A draft your app opened, untouched since | `200` with the encounter. |
+| A visit your app did not open, one that does not exist, or one for a restricted patient | `404 not_found`. |
+| A draft a clinician has edited since your app opened it, including adding or changing its visit details | `409 note_not_editable`. |
+| A visit a clinician has signed or finalised | `409 note_not_editable`. |
+
+**A clinician can edit a visit's details on the note**, on any note they may edit. Once they do, the visit is theirs and
+your app can no longer change it. This is deliberate. Read the visit again to see what the clinic recorded. See
+[Errors](/errors#note_not_editable).
+
+## One id for the visit and its note
+
+An encounter and its note are the same record, so the id works in both places. A key with `notes:read` can read the note's
+text at `GET /v1/clinics/{clinic_id}/notes/{id}`; `encounters:read` alone never returns it. Notes created through the API cannot carry treatment, service or diagnosis blocks: those are
+refused with `unknown_field`, which is why a draft visit opens empty and stays free of orders.
+
+## As FHIR
+
+Send `Accept: application/fhir+json` and a list becomes a `Bundle` of `Encounter`, a single read a bare `Encounter`. A
+visit with no known `class` is shown as unknown rather than guessed. **Writes are JSON only**: a FHIR body on these
+routes is refused. See [FHIR](/fhir).
+
+## Test keys
+
+A test key sees one fictional completed encounter for each sandbox patient, plus the draft visits it opens itself. A test
+key's `clinician_id` must be one of the sandbox clinicians.

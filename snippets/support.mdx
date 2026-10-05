@@ -1,0 +1,15 @@
+
+
+export const StillStuck = ({ topic }) => (
+  <div className="ck-callout ck-callout--note" role="note">
+    <p className="ck-callout__body">
+      <strong>Still stuck{topic ? ` with ${topic}` : ''}?</strong>{' '}
+      Check the <a href="https://help.clinikehr.com/platform/help/troubleshooting">product's troubleshooting guide</a>{' '}
+      first — most integration issues turn out to be a plan, permission, or
+      agreement gate on the clinic side, not the API. If that doesn't resolve
+      it, <a href="mailto:support@clinikehr.com">contact support</a> and
+      include the failing request's <code>request_id</code> (see{' '}
+      <a href="/errors">Errors</a>) so we can find it in the logs.
+    </p>
+  </div>
+);

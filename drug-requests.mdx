@@ -1,0 +1,97 @@
+---
+title: "Drug requests"
+description: "Sending a request for medicines to a pharmacy, and following it through to dispensing."
+icon: "/images/icons/prescription-bottle-medical.svg"
+---
+
+<Info>
+  **These routes are live**, but reaching them needs the same patient-data permission as patients,
+  appointments and clinical notes: the pharmacy's plan is Team, Business (Pharmacy/Diagnostics
+  editions) or Enterprise, its API add-on is active (or its contract is Enterprise), and its owner
+  has accepted the current API data agreement — see [the index page](/index#patient-records-appointments-clinical-notes-and-drug-requests).
+</Info>
+
+A drug request is how your system asks a pharmacy to prepare medicines for one of your enrollees — the pharmacist
+always decides; a request is a request, not a guaranteed dispense. This is the intended shape for **ask 3** from
+early partner conversations: sending a request from a partner's own portal to the pharmacy.
+
+## What a request needs
+
+- The enrollee — a person who is already a **patient of that pharmacy's clinic**. Linking a patient is the
+  [Patients](/index) resource's job; a request cannot name someone who isn't already linked.
+- One or more lines — a medicine (identified by any code your connection can resolve), a quantity, and directions
+  if you have them.
+- `needed_by` — when the enrollee needs this by, if known.
+- Your own reference (`requester_reference`) — so a request you can see in your own system maps cleanly to one the
+  pharmacist sees in theirs.
+- Optionally, an `authorization_reference` — a pre-authorization or claim number you already hold. **This is never
+  checked or resolved by the request itself** — it rides along for your own records only.
+
+<Warning>
+  **Money never moves through a request.** There is no price on a drug request, ever. Payment and claims stay
+  exactly where they are today, outside this API.
+</Warning>
+
+## States
+
+```
+submitted → accepted ─────────────┐
+         → partly_accepted ───────┤
+         → substituted ───────────┤→ ready → dispensed
+         → declined (terminal)    │
+                                   └→ cancelled / expired (terminal)
+```
+
+| State | Meaning |
+| --- | --- |
+| `submitted` | Sent, waiting for the pharmacist. |
+| `accepted` | The pharmacist can fill it as requested. |
+| `partly_accepted` | Some lines can be filled, not all. |
+| `substituted` | The pharmacist proposes a different product for one or more lines — you (the requester) confirm before it proceeds. |
+| `declined` | Refused, with a reason. Terminal. |
+| `ready` | Prepared, waiting to be collected/dispensed. |
+| `dispensed` | Actually handed over — this happens **at the till**, through the pharmacy's own one write path for a sale. Terminal. |
+| `cancelled` | Withdrawn, by either side, with a reason and who cancelled it. Terminal. |
+| `expired` | Never actioned in time. Terminal. |
+
+Every transition is recorded (from, to, who) — nothing changes state silently.
+
+## Routes
+
+| Method | Path | Scope |
+| --- | --- | --- |
+| `POST` | `/v1/clinics/{clinic_id}/drug_requests` | `requests:write` |
+| `GET` | `/v1/clinics/{clinic_id}/drug_requests` | `requests:read` |
+| `GET` | `/v1/clinics/{clinic_id}/drug_requests/{request_id}` | `requests:read` |
+| `POST` | `/v1/clinics/{clinic_id}/drug_requests/{request_id}/cancel` | `requests:write` |
+| `POST` | `/v1/clinics/{clinic_id}/drug_requests/{request_id}/confirm_substitution` | `requests:write` |
+
+`POST .../drug_requests` requires an `Idempotency-Key` header — a bare retry never creates a second request. The
+other four do not need one: each is naturally idempotent or already checked against the request's current state.
+
+<Warning>
+  **No route here lets your system accept, mark ready, or dispense a request.** Those decisions belong to the
+  pharmacist, in the pharmacy's own app. Your system creates, reads, cancels, and confirms or declines a proposed
+  substitute — nothing more.
+</Warning>
+
+Your system sees only the requests **its own connection created** — never another organization's requests to the
+same pharmacy, even one connected to the same clinic.
+
+## Availability is not a commitment
+
+Reading [stock and availability](/inventory) tells you what a pharmacy's system currently believes is true.
+A drug request is the actual commitment — the pharmacist reserves nothing until they decide to accept it, and
+"in stock" a moment ago is never a guarantee it still will be when they look.
+
+## Never available offline
+
+Accepting, substituting, or dispensing against a request is workflow on an existing record — the same reason a
+pharmacy's own app never lets these happen while offline. A pharmacist reconnecting after downtime sees requests
+exactly as they were left; nothing about a request is captured or replayed offline.
+
+## See also
+
+- [Patients](/index) — linking the enrollee this request needs
+- [Permissions](/permissions) — `requests:read` / `requests:write` are their own patient-data permissions, granted
+  by the clinic owner separately from any other scope your connection holds

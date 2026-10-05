@@ -1,0 +1,228 @@
+---
+title: "Referrals"
+description: "Read the referrals a clinic has received for a patient, and send one for the clinic to review. The clinic decides to accept, decline or book it, and no request can."
+icon: "/images/icons/shield-check.svg"
+---
+
+A **referral** is another practice asking this clinic to see a patient: "please assess this patient for a cardiology opinion".
+This page covers the referrals a clinic receives. It is **not** the clinic referral programme (the way clinics invite other
+clinics to the platform), not a "referred by" marketing source, and not the antenatal or postnatal referral recorded in the
+maternity module.
+
+Reading the list is immediate. **Writing is different:** a referral you send is held for the clinic to review, and only a
+member of the clinic's staff putting it on the clinic's referral list makes it real. Read
+[Reviewing outside submissions](/reviewing-outside-submissions) first if you have not already, because everything about
+sending builds on it.
+
+**Your request never accepts, declines, books or completes a referral.** Those are the clinic's decisions, made by its staff,
+and no permission lets a key make them. What you can do is send a referral, correct what you sent while the clinic has not yet
+acted on it, take it back, and read what became of it.
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List a patient's referrals | `GET /v1/clinics/{clinic_id}/referrals?patient_id=…` | `referrals:read` |
+| Read one referral | `GET /v1/clinics/{clinic_id}/referrals/{referral_id}` | `referrals:read` |
+| Send a referral | `POST /v1/clinics/{clinic_id}/referrals` | `referrals:write` |
+| Change or take back a referral you sent | `PATCH /v1/clinics/{clinic_id}/referrals/{referral_id}` | `referrals:write` |
+| Follow what happened to something you sent | `GET /v1/clinics/{clinic_id}/submissions/{submission_id}` | `referrals:write` (even to read) |
+
+The patient must be one your key is allowed to see. A patient the clinic has restricted, or a record that does not exist,
+returns `404` with `code: "not_found"`. The two are never told apart. See [Errors](/errors).
+
+## What one looks like
+
+```json
+{
+  "id": "6a1d2c3e-1111-4a2b-9c3d-0123456789ab",
+  "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "direction": "incoming",
+  "status": "received",
+  "priority": "urgent",
+  "service": { "text": "Cardiology consultation", "code": null },
+  "reason": { "text": "Chest pain on exertion for two weeks", "code": { "system": "icd-10-cm", "code": "R07.89" } },
+  "clinical_summary": "58-year-old, hypertensive, abnormal resting ECG.",
+  "requester": { "name": "Dr Rivera", "organization": "Riverside Family Practice", "npi": null },
+  "recipient": { "provider_id": null, "department_id": null },
+  "requested_at": "2026-10-04T09:00:00Z",
+  "needed_by": "2026-10-18",
+  "scheduled_appointment_id": null,
+  "source": "api",
+  "origin_assistant_name": "Acme Intake",
+  "review_status": "confirmed",
+  "submission_id": null,
+  "decision_reason": null,
+  "created_at": "2026-10-04T09:00:00Z",
+  "updated_at": "2026-10-04T09:00:00Z"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `direction` | Always `incoming` today: a referral to this clinic. `outgoing` is reserved. |
+| `status` | The clinic's workflow word. See [Status](#status). `null` while the referral is still only a submission. |
+| `priority` | `routine`, `urgent`, `asap` or `stat`. |
+| `service` | What is being asked for: `text` (1 to 300 characters), and optionally a `code`. |
+| `reason` | Why: `text` (1 to 1000 characters), and optionally a `code`. |
+| `clinical_summary` | Optional free text, up to 8000 characters. |
+| `requester` | Who sent it, as stated: `name`, `organization` and a 10-digit `npi`, each optional. |
+| `recipient` | Who at the clinic it was handed to, once the clinic chose: a clinician and/or a department. |
+| `scheduled_appointment_id` | The booking the clinic made for it, if any. |
+| `source` | `clinic` if the clinic recorded it, `api` if it began as an outside submission the clinic accepted. |
+| `review_status` | `confirmed`, `pending`, `rejected` or `withdrawn`. |
+| `decision_reason` | See [Who sees a reason](#who-sees-a-reason). |
+
+A referral you sent that is still waiting has `"id": null` and `"status": null`: it is not on the clinic's list yet. Use
+`submission_id` to follow it.
+
+### Codes
+
+A `code` is a `system` and a `code` together, or absent. For `service`, `system` is `snomed-ct` (digits only) or `local`
+(your own code, up to 64 characters). For `reason`, `system` is `icd-10-cm`, `icd-10`, `snomed-ct` or `local`.
+
+An ICD-10 code is checked against a verified list, and one that is not a real ICD-10 code is refused with
+`invalid_request`. A code is stored in its standard form. Send the reason as text only if you are unsure of the code.
+
+## Status
+
+The clinic moves a referral through these words. You can read them; you can never set them.
+
+| `status` | Meaning |
+| --- | --- |
+| `received` | The clinic accepted it into its referral list. Nothing else has happened yet. **This is where every referral starts.** |
+| `accepted` | The clinic has agreed to see the patient. |
+| `scheduled` | The clinic has booked, or marked as booked. |
+| `completed` | The clinic has seen the patient. |
+| `declined` | The clinic will not take it. |
+| `cancelled` | It was called off after it began. |
+| `entered_in_error` | It should never have existed, for example it was sent for the wrong patient. |
+
+A finished referral (`completed`, `declined`, `cancelled`) is never reopened, and one marked `entered_in_error` never changes.
+
+## List referrals
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/referrals?patient_id=PATIENT_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Meaning |
+| --- | --- |
+| `patient_id` | **Required.** The patient to list for. |
+| `review_status` | `confirmed` (the default), `pending`, or `all`. |
+| `status` | One of the seven statuses: only confirmed referrals with that status. |
+| `updated_since` | RFC 3339 timestamp: only items changed since then. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+- **`confirmed`** is every referral on the patient's record at the clinic, including those other senders made and those the clinic recorded itself.
+- **`pending`** is the referrals **your own key or organization** sent that are waiting for a decision, plus those declined, each with its `review_status`. You never see another party's submissions.
+- **`all`** is both together.
+
+An item with `review_status` other than `confirmed` is not on the clinic's list. **An empty list does not mean the patient has
+no referrals.** It means none has been confirmed.
+
+## Send a referral
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/referrals" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "patient_id": "PATIENT_ID",
+        "service": { "text": "Cardiology consultation" },
+        "reason": { "text": "Chest pain on exertion for two weeks", "code": { "system": "icd-10-cm", "code": "R07.89" } },
+        "priority": "urgent",
+        "needed_by": "2026-10-18",
+        "clinical_summary": "58-year-old, hypertensive, abnormal resting ECG.",
+        "requester": { "name": "Dr Rivera", "organization": "Riverside Family Practice" },
+        "client_reference": "referral-2026-10-04-0017"
+      }'
+```
+
+| Field | Notes |
+| --- | --- |
+| `patient_id` | Required. |
+| `service` | Required. `text` and optionally a `code`. |
+| `reason` | Required. `text` and optionally a `code`. |
+| `priority` | Optional. `routine` (the default), `urgent`, `asap` or `stat`. |
+| `needed_by` | Optional date. Not earlier than yesterday. |
+| `clinical_summary` | Optional, up to 8000 characters. |
+| `requester` | Optional. `name` (up to 200), `organization` (up to 200) and `npi` (exactly 10 digits). |
+| `client_reference` | Optional. Your own id for the item. Reusing one for a different item returns `409 client_reference_conflict`. |
+| `origin_assistant_name` | Optional. The name of your system. The clinic's reviewer sees it as the sender. |
+
+A field not listed here is refused with `invalid_request`, naming it. **`status`, `recipient`, `direction` and any decision
+field are not accepted on a new referral.** A referral always starts as `received`, once the clinic accepts it.
+
+**`Idempotency-Key` is required on `POST`** (optional on `PATCH`). See [Retries and duplicates](/retries-and-idempotency).
+
+### The answer is 202, not 201
+
+```http
+HTTP/1.1 202 Accepted
+Location: /v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID
+```
+
+The body is the submission, showing `"status": "pending"`. A `202` is a receipt. It is **not** a referral on the clinic's
+list.
+
+### After you send one
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+- `pending`: waiting for the clinic.
+- `confirmed`: the clinic added it to its referral list as `received`. Read the referral to follow its `status` from there.
+- `rejected`: the clinic declined to add it, with the reason. Do not resend it unchanged.
+- `withdrawn`: you took it back while it was pending.
+
+Only the key or organization that sent a submission can read it. Anyone else gets `404`. **Being added to the list is not the same as being accepted:** a `confirmed` submission is a `received` referral, and the clinic's decision to see the patient comes later, as `status`.
+
+## Change or take back a referral
+
+```bash
+curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/referrals/REFERRAL_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "priority": "asap", "clinical_summary": "ECG repeated today and still abnormal." }'
+```
+
+Send only the fields that change: any of `priority`, `needed_by`, `reason`, `clinical_summary`, `requester`. **The service
+cannot be changed**: a different service is a new referral. The answer is `202 Accepted` and the change waits for the clinic's review.
+
+To take a referral back as sent in error, send `{ "status": "entered_in_error" }` **on its own**. That is the only status a
+request can send.
+
+**Only until the clinic acts on it.** A change or a take-back is possible only while the referral is still `received`. Once the
+clinic has accepted, declined, booked or finished it, a change is refused with `400 invalid_request`, saying the clinic has
+already actioned the referral. You cannot cancel it either: cancelling is the clinic's decision. Ask the clinic.
+
+A clinic can also choose to accept new referrals without review. Then the answer to your send already shows `review_status: "confirmed"` and `accepted_automatically: true`, and the referral lands as `received` with `accepted_by: "automatic"`. Accepting, declining and booking it stay with the clinic's team, and `reviewed_at` and `reviewed_by_staff_id` are `null` until a clinician marks it reviewed. See [Automatic acceptance](/automatic-acceptance).
+
+## Who sees a reason
+
+When the clinic declines or cancels a referral it writes a reason. That reason may carry sensitive wording, so it is shown
+**only to the key or organization that sent the referral**. Every other key reads `decision_reason: null`. On a **rejected
+submission**, `decision_reason` is the reason the clinic gave for not adding it to its list.
+
+## FHIR
+
+Send `Accept: application/fhir+json` to read a referral as a `ServiceRequest` (`intent: "order"`, with the SNOMED CT
+"Patient referral" category). The status words map as `received`, `accepted` and `scheduled` to `active`, `completed` to
+`completed`, `declined` and `cancelled` to `revoked`, and `entered_in_error` to `entered-in-error`. A submission still waiting
+for review reads as `draft`, and only when you ask for `pending` or `all`. **FHIR is not accepted as input:** send and change
+referrals with the JSON routes above. A FHIR body is refused with an `OperationOutcome`. See [FHIR R4](/fhir).
+
+## A worked example
+
+1. A referring practice's system sends `POST …/referrals` for a cardiology consultation, with an `Idempotency-Key`. The answer is `202`, with a `Location` header.
+2. `GET …/referrals?patient_id=…` does not show it. It is not on the clinic's list.
+3. A member of the clinic's staff opens **Review outside data**, reads it and selects **Accept**. You read the submission and it is `confirmed`.
+4. `GET …/referrals?patient_id=…` now returns it with `status: "received"` and `source: "api"`. The clinic's **Referrals to action** list and the patient's **Referrals** section show it.
+5. The clinic accepts it, books an appointment and later marks it completed. Each time you read it, `status` has moved on (`accepted`, `scheduled`, `completed`). You did not do any of it, and could not.
+6. Had you needed to correct the priority, you could have while `status` was still `received`. After the clinic accepts it (step 5), a change is refused.
+
+A test key reaches only your workspace's sandbox, which holds an invented `received` referral for each invented patient, so you
+can try the requests above without touching a real chart. A referral you send there is never actioned.

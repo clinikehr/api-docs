@@ -1,0 +1,192 @@
+---
+title: "Insurance: payers and coverage"
+description: "List the payers a clinic has enabled, read a patient's insurance coverage, and add one. Coverage you add stays inactive until staff confirm it."
+icon: "/images/icons/shield-check.svg"
+---
+
+Two resources work together. A **payer** is an insurance company the clinic has enabled. A **coverage** is one policy
+a patient holds with a payer: the member ID, the group, the subscriber and the dates.
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List the clinic's payers | `GET /v1/clinics/{clinic_id}/payers` | `payers:read` |
+| Read one payer | `GET /v1/clinics/{clinic_id}/payers/{payer_id}` | `payers:read` |
+| List a patient's coverages | `GET /v1/clinics/{clinic_id}/coverages?patient_id=…` | `coverage:read` |
+| Read one coverage | `GET /v1/clinics/{clinic_id}/coverages/{coverage_id}` | `coverage:read` |
+| Add a coverage | `POST /v1/clinics/{clinic_id}/coverages` | `coverage:write` |
+| Change a coverage | `PATCH /v1/clinics/{clinic_id}/coverages/{coverage_id}` | `coverage:write` |
+
+Payers carry no patient information, so `payers:read` is not a patient-data permission. Coverage is: the add-on,
+the agreement and, for an organization, the approval for the **Insurance coverage** kind all apply. See
+[Permissions](/permissions).
+
+A patient the clinic has restricted, or a coverage that does not exist, returns `404` with `code: "not_found"`. The
+two are never told apart. See [Errors](/errors).
+
+## Payers
+
+The list holds only the payers the clinic has **enabled** under **Settings → Insurance**. A payer the clinic has not
+enabled is not listed, and reading it returns `404`. To attach a coverage to a payer you need its `id` from this list.
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/payers?q=aetna" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "id": "0a1b2c3d-4444-4e5f-8a6b-23456789abcd",
+  "display_name": "Aetna",
+  "primary_payer_id": "60054",
+  "coverage_types": ["medical", "dental"],
+  "operating_states": ["NY", "NJ"]
+}
+```
+
+| Query parameter | Meaning |
+| --- | --- |
+| `q` | Part of the payer's name. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+## What a coverage looks like
+
+```json
+{
+  "id": "7e1f0c2a-5555-4a6b-9c7d-3456789abcde",
+  "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "payer": { "id": "0a1b2c3d-4444-4e5f-8a6b-23456789abcd", "display_name": "Aetna" },
+  "member_id": "W123456789",
+  "group_number": "GRP-4401",
+  "group_name": "Acme Corp",
+  "plan_name": "PPO Choice",
+  "coverage_type": "medical",
+  "payment_responsibility": "P",
+  "relationship_to_subscriber": "self",
+  "subscriber": { "first_name": "Sam", "last_name": "Rivera", "date_of_birth": "1988-05-02", "gender": "F", "member_id": "W123456789" },
+  "is_primary": true,
+  "coverage_active": true,
+  "effective_date": "2026-01-01",
+  "termination_date": null,
+  "copay_amount": 25,
+  "coinsurance_percent": 20,
+  "deductible_amount": 1500,
+  "out_of_pocket_max": 6000,
+  "pre_authorization_required": false,
+  "network_status": "in_network",
+  "eligibility": { "status": "active", "checked_at": "2026-09-30T14:02:00Z" },
+  "verification_status": "confirmed",
+  "source": "clinic",
+  "origin_assistant_name": null,
+  "created_at": "2026-09-01T09:00:00Z",
+  "updated_at": "2026-09-30T14:02:00Z"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `payer` | The enabled payer, or `null` if the payer has since been removed from the clinic. |
+| `payment_responsibility` | `P` primary, `S` secondary or `T` tertiary. |
+| `relationship_to_subscriber` | `self`, `spouse`, `child`, `other`, `employee`, `organ_donor`, `cadaver_donor` or `life_partner`. |
+| `coverage_active` | Whether the clinic may use this coverage. Always `false` while `verification_status` is `unconfirmed`. |
+| `eligibility` | The result of the clinic's own most recent eligibility check, or `null`. Read-only: you cannot set it. |
+| `verification_status` | `confirmed`, or `unconfirmed` for a coverage that a person on the clinic's staff has not yet confirmed. |
+| `source` | `clinic` if staff entered it, `api` if it was added through the API. |
+| `origin_assistant_name` | The name the sender gave, for an `api` coverage. |
+
+The subscriber's address, the clinic's private notes and the running deductible and out-of-pocket totals are never
+returned.
+
+## List coverages
+
+| Query parameter | Meaning |
+| --- | --- |
+| `patient_id` | **Required.** The patient to list for. |
+| `verification_status` | `all` (the default), `confirmed` or `unconfirmed`. |
+| `updated_since` | RFC 3339 timestamp: only coverages changed since then. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+## Add a coverage
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/coverages" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 5a3f6e1c-8d2b-4c7a-9f10-0b1c2d3e4f5a" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "patient_id": "PATIENT_ID",
+        "payer_id": "0a1b2c3d-4444-4e5f-8a6b-23456789abcd",
+        "member_id": "W123456789",
+        "group_number": "GRP-4401",
+        "relationship_to_subscriber": "self",
+        "origin_assistant_name": "Acme Intake"
+      }'
+```
+
+The answer is `201 Created` with the coverage. **`Idempotency-Key` is required on `POST`** and optional on `PATCH`. See
+[Retries and duplicates](/retries-and-idempotency).
+
+You may send `payer_id`, `member_id`, `group_number`, `group_name`, `plan_name`, `payment_responsibility`,
+`relationship_to_subscriber`, the subscriber's name, date of birth, gender and member ID, `coverage_type`,
+`effective_date`, `termination_date`, `copay_amount`, `coinsurance_percent`, `deductible_amount`,
+`out_of_pocket_max`, `pre_authorization_required`, `network_status`, `is_primary` and `origin_assistant_name`. A field
+this list does not name is refused with `invalid_request`, and the error names the field.
+
+Eligibility results, running deductible and out-of-pocket totals, and the clinic's notes belong to the clinic and
+cannot be sent.
+
+### A coverage you add is not active until staff confirm it
+
+This is the rule to build around. A coverage created through the API is saved as **`unconfirmed`** and **inactive**
+(`coverage_active: false`), and you cannot change that:
+
+- Sending `coverage_active: true` is refused with `409 activation_requires_staff`.
+- At the clinic, the coverage shows **Added by** your system's name, **not active until confirmed**, with a **Confirm** button.
+- A member of staff checks the payer, member ID and subscriber against the patient's card and selects **Confirm**. Only then is the coverage active and usable for eligibility checks and claims.
+- Reading the coverage afterwards shows `verification_status: "confirmed"` and `coverage_active: true`. Poll it, or use the change feed, to find out.
+
+Ending a coverage is yours to do: send `coverage_active: false` or a `termination_date`.
+
+If you change a **confirmed** coverage's payer, member ID, group number, relationship or the subscriber's name,
+date of birth or member ID, it returns to `unconfirmed` and inactive, and staff must confirm it again. Other edits keep
+its status.
+
+### The payer must be enabled
+
+`payer_id` must be a payer from [the payer list](#payers). If it is not enabled under **Settings → Insurance**, the
+request is refused with `409 payer_not_enabled`. Ask the clinic to enable the payer, then send it again.
+
+### One coverage per patient and payer
+
+A patient can have one coverage per payer. Adding a second one for the same payer returns `409 coverage_exists`, and
+when you may see that patient the error carries the existing coverage's `id` so you can `PATCH` it instead.
+
+## Change a coverage
+
+```bash
+curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/coverages/COVERAGE_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "termination_date": "2026-12-31" }'
+```
+
+Send only the fields that change. The answer is `200` with the coverage. The same rules apply as when adding one. A `PATCH` does not accept `null`, so a value you have sent cannot be cleared again through the API; ask the clinic to clear it.
+
+## FHIR
+
+Send `Accept: application/fhir+json` to read a coverage, or a list of them as a `Bundle`, as a FHIR R4 `Coverage`.
+An `unconfirmed` coverage has `status: "draft"`; a confirmed active one is `active`; an ended or inactive one is
+`cancelled` (confirmed, but not active). The `beneficiary` is the patient, the `payor` is an `Organization` for the payer, and `relationship`
+uses the standard HL7 subscriber-relationship coding. A payer is read as a FHIR `Organization` the same way.
+A payer's `Organization` has `type` of payer. FHIR input is not accepted: an `application/fhir+json` body on `POST` or `PATCH` is refused with an `OperationOutcome` (`400`, not supported), so send additions and changes in the plain JSON shape above. See [FHIR R4](/fhir).
+
+## A worked example
+
+1. Your intake system reads a patient's insurance card. It lists the clinic's payers and finds "Aetna".
+2. It sends `POST …/coverages` with the payer's `id`, the member ID and an `Idempotency-Key`. The answer is `201`, with `coverage_active: false` and `verification_status: "unconfirmed"`.
+3. The connection drops before the answer arrives. It sends the same request with the same key and gets the same coverage back, not a second one.
+4. At the clinic the patient's **Insurance Coverage** shows **Added by Acme Intake, not active until confirmed**. A staff member compares it with the card and selects **Confirm**.
+5. Your system reads the coverage again. It is `confirmed` and active, and the clinic can run an eligibility check on it.
+6. Later the patient changes plans. Your system sends a `PATCH` with the new member ID. The coverage returns to `unconfirmed` until staff confirm it again.
+
+A test key reaches only your workspace's sandbox, with a made-up payer list and invented patients, so you can try
+every request above without touching a real chart.

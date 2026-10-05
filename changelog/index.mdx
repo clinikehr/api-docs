@@ -1,0 +1,218 @@
+---
+title: Changelog
+description: "What's new in the ClinikEHR API — new resources, scopes and endpoints, newest first."
+icon: /images/icons/sparkles.svg
+mode: center
+---
+
+What a developer can build against changes here, newest first. Every entry is something you can call **today** — see `api-docs/README.md` for what earns an entry and what doesn't.
+
+Tags: **API** (a resource, scope, or endpoint) · **Sandbox** (test keys and synthetic data) · **Portal** (the developer dashboard at [developer.clinikehr.com](https://developer.clinikehr.com)) · **Webhooks** (endpoints, deliveries and the change feed) · **Billing** (workspace plans and usage).
+
+<Update label="[RELEASE DATE]" tags={["API"]} description="v1">
+  ## Items you send can now be accepted automatically when a clinic chooses
+
+  A clinic's owner or manager can choose, for one key or one connected organization and for each kind separately, to accept your **new** allergies, conditions, reported medicines and referrals without review. It is off until the clinic turns it on, and you cannot request or detect it. Every field below is new and optional to read. See [Automatic acceptance](/automatic-acceptance).
+
+  - **The answer to a send can already be decided.** It is still `202 Accepted` with a `Location`, but the submission may show `review_status: "confirmed"`, `result_record_id` and a new `accepted_automatically: true` (`false` otherwise). Read the body, not the status code.
+  - **The record says how it got there.** Allergies, conditions, reported medicines and referrals carry `accepted_by` (`automatic`, `clinic`, or `null` while not yet accepted), and `reviewed_at` and `reviewed_by_staff_id`, which stay `null` until a clinician marks an automatically accepted item reviewed.
+  - **Not presented as checked.** An item accepted automatically reads `verification_status: "unconfirmed"` (and `unconfirmed` in FHIR, with an `accepted_by` extension) until a clinician reviews it. Updates, retractions and "no known allergies" are never accepted automatically, and an item accepted automatically can no longer be changed or withdrawn (`409 submission_not_pending`).
+  - **It pauses on unusual volume,** after which your items wait for review again, and a rolled key or a new connection starts with it off.
+  - **Removed: `409 allergy_exists`.** Sending an allergy the patient already has is no longer refused. It is accepted into review (`202`) and a clinician can decline it, and a duplicate is never added to the chart or accepted automatically. If your code handled `allergy_exists`, that branch will no longer run. See [Allergies](/allergies#an-allergy-the-patient-already-has).
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API"]} description="v1">
+  ## Encounters: read a patient's visits, and open a draft visit for a clinician to complete
+
+  Show a patient's visits in your own app, and open a visit from a scheduling or intake system. A visit is the clinic's visit note, so an encounter and its note share one `id`. See [Encounters](/encounters).
+
+  - **Read** a patient's visits: `GET /v1/clinics/{clinic_id}/encounters` and `GET /v1/clinics/{clinic_id}/encounters/{encounter_id}`, permission `encounters:read`. Each carries `status` (`draft` or `completed`), `class`, `period`, `reason` and the clinician, and **never any clinical text or billing**. Notes the clinic marked sensitive are not listed. Also available as FHIR `Encounter`.
+  - **Open** a draft visit with `POST`, permission `encounters:write`. The answer is `201 Created` and `Idempotency-Key` is required. The visit appears in the clinic's consultation list, marked **From** your app and not yet reviewed, for a clinician to complete. Nothing is ordered, prescribed, billed, signed or finalised, and there is no field for note text.
+  - **Change** the type, start, end or reason of a draft your app opened with `PATCH`, until a person touches it. Once a clinician edits the draft, including its visit details, or signs it, the change is refused with `409 note_not_editable`. See [Errors](/errors#note_not_editable).
+  - **Permissions:** `encounters:read` and `encounters:write` can now be given to a key, and the Visits kind can be requested in an organization's application. See [Permissions](/permissions).
+  - **Clinicians can now edit a visit's details** on any note, and a visit with no type shows as unknown in FHIR rather than as a guessed type.
+  - A note's text still comes from the Notes routes: notes created through the API cannot carry treatment, service or diagnosis blocks.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API"]} description="v1">
+  ## Referrals: read the referrals a clinic has received, and send one for review
+
+  Connect a referring practice's system to the clinic it refers to. A referral you send is reviewed by the clinic before it joins its referral list, and the clinic alone decides to accept, decline or book it. See [Referrals](/referrals).
+
+  - **Read** a patient's referrals: `GET /v1/clinics/{clinic_id}/referrals` and `GET /v1/clinics/{clinic_id}/referrals/{referral_id}`, permission `referrals:read`. Each carries the clinic's workflow `status` (`received`, `accepted`, `scheduled`, `completed`, `declined`, `cancelled`, `entered_in_error`). Also available as FHIR `ServiceRequest`.
+  - **Send** a referral with `POST`, permission `referrals:write`. The answer is `202 Accepted` with a `Location` header, and `Idempotency-Key` is required. Follow it with `GET /v1/clinics/{clinic_id}/submissions/{submission_id}`.
+  - **Change or take back** a referral you sent with `PATCH`, only while the clinic has not acted on it. After the clinic accepts, declines or books it, a change is refused with `400 invalid_request`. No request can accept, decline, book, complete or cancel a referral.
+  - **ICD-10 reason codes** are checked against a verified list, and one that is not a real ICD-10 code is refused.
+  - **A reason stays private.** The reason the clinic gives for declining or cancelling is shown only to the key or organization that sent the referral.
+  - **Permissions:** `referrals:read` and `referrals:write` can now be given to a key, and the Referrals kind can be requested in an organization's application. See [Permissions](/permissions).
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API"]} description="v1">
+  ## Providers and outside care providers: read the clinic's clinicians, and keep a patient's outside contacts
+
+  Show who a patient will see, and keep the doctors, referrers and specialists a patient names up to date. See [Providers](/providers) and [Outside care providers](/care-providers).
+
+  - **Read** the clinic's clinicians: `GET /v1/clinics/{clinic_id}/providers` and `GET /v1/clinics/{clinic_id}/providers/{provider_id}`, permission `providers:read`. Each carries name, role, specialties, NPI and licences. It is **read-only**, holds no contact details and no verified flag, and is not a patient-data permission. Also available as FHIR `Practitioner`.
+  - **Read** a patient's outside care providers: `GET /v1/clinics/{clinic_id}/care-providers` and `GET /v1/clinics/{clinic_id}/care-providers/{care_provider_id}`, permission `care_providers:read`. Every contact is listed with `source` and a new `editable` flag.
+  - **Add** one with `POST`, permission `care_providers:write`. The answer is `201 Created` and `Idempotency-Key` is required. It is saved straight away and appears at the clinic marked **From** your system.
+  - **Change or remove only what your app added.** `PATCH` and the new `DELETE` (`204 No Content`) work on contacts your app added. On a contact the clinic or another app added they are refused with `409 care_provider_clinic_managed`. See [Errors](/errors).
+  - **Permissions:** `providers:read`, `care_providers:read` and `care_providers:write` can now be given to a key, and the **Outside care team** kind can be requested in an organization's application. See [Permissions](/permissions).
+  - The Patients routes keep showing `care_providers` as read-only; use the new routes to add one.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API"]} description="v1">
+  ## Medications: read reported medicines and prescriptions, and send a reported medicine for review
+
+  Connect an intake or records system to the medicines a patient reports taking, and read the prescriptions written for them. A reported medicine you send is reviewed by a clinician before it reaches the chart. See [Medications](/medications).
+
+  - **Read** a patient's reported medicines: `GET /v1/clinics/{clinic_id}/medication-statements` and `GET /v1/clinics/{clinic_id}/medication-statements/{medication_statement_id}`, permission `medications:read`. Also available as FHIR `MedicationStatement`.
+  - **Send** a reported medicine, or ask for a change, with `POST` and `PATCH`, permission `medications:write`. The answer is `202 Accepted` with a `Location` header, and nothing reaches the chart until a clinician accepts it. Follow it with `GET /v1/clinics/{clinic_id}/submissions/{submission_id}`.
+  - **Read** a patient's prescriptions: `GET /v1/clinics/{clinic_id}/prescriptions` and `GET /v1/clinics/{clinic_id}/prescriptions/{prescription_id}`, permission `medications:read`. They are **read-only** and carry only the drug, dose, frequency, status and dates; prescriptions sent electronically are included with `source: "eprescribe"`. Also available as FHIR `MedicationRequest`. No request can create or change a prescription.
+  - **RxNorm codes** on a reported medicine are accepted only when they are on our verified list. A code we do not recognise is refused; send the medicine as text, or with a `local` code.
+  - **Pharmacy checks use it.** A confirmed reported medicine with a recognised code is included in the clinic's drug interaction checks while it is active. One without a recognised code is shown to the pharmacist as not checked, and is never matched by its name.
+  - **ICD-10 codes are now validated.** A condition sent with an `icd-10-cm` or `icd-10` code that is not a real ICD-10 code is refused with `invalid_request`. Before, only the shape of the code was checked.
+  - **Permissions:** `medications:read` and `medications:write` can now be given to a key, and the Medications kind can be requested in an organization's application. See [Permissions](/permissions).
+  - The Patients routes keep refusing `current_medications`; send reported medicines here instead.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API"]} description="v1">
+  ## Allergies: read a patient's allergies and send one for review
+
+  Connect an intake or records system to a patient's allergies and intolerances. An allergy you send is reviewed by a clinician before it reaches the chart. See [Allergies](/allergies).
+
+  - **Read** a patient's allergies: `GET /v1/clinics/{clinic_id}/allergies` and `GET /v1/clinics/{clinic_id}/allergies/{allergy_id}`, permission `allergies:read`. Also available as FHIR `AllergyIntolerance`.
+  - **Send** a new allergy, or ask for a change, with `POST` and `PATCH`, permission `allergies:write`. The answer is `202 Accepted` with a `Location` header, and nothing reaches the chart until a clinician accepts it. Follow it with `GET /v1/clinics/{clinic_id}/submissions/{submission_id}`, which now works for the kind of item you sent.
+  - **Names on the clinic's plain allergy list** are returned too, as read-only items with `entry: "legacy_text"` and no `id`, so a patient is never shown as having no allergies when the chart says otherwise. An empty list does not mean "no known allergies".
+  - **RxNorm codes** are accepted only when they are on our verified list. A substance such as "none" or "NKDA" is refused.
+  - **Permissions:** `allergies:read` and `allergies:write` can now be given to a key, and the Allergies kind can be requested in an organization's application. See [Permissions](/permissions).
+  - **"No known allergies"** can be sent as a statement. It is reviewed like an allergy, and a clinician cannot confirm it while the patient has an active allergy on the chart.
+  - **Breaking change, Patients routes:** creating, updating or importing a patient no longer accepts `allergies`, `current_medications` or `chronic_conditions`. A request that includes any of them is refused. These fields used to write the patient's record directly, with no review. Send allergies with [Allergies](/allergies) and conditions with [Conditions](/conditions) instead; both are reviewed by a clinician before they reach the chart. Current medications cannot be set through the API.
+  - New error code `allergy_exists` (`409`): the patient already has an active, confirmed allergy to that substance.
+  - **FHIR `Condition` fix:** the extra ClinikEHR fields on a FHIR `Condition` (`review_status`, `source`, `origin_assistant_name`, `submission_id`, `decision_reason`) are now valid FHIR extensions, each carrying a `valueString`. Before, they carried a bare `value`, which FHIR validators reject.
+  - Blank notes created through the API no longer accept order or billing content (`diagnosisData`, `treatment_plans`, `follow_up_plans`, `services`, `diagnoses`) or underscore-prefixed fields; such a request is refused with `unknown_field`.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API"]} description="v1">
+  ## Insurance: list a clinic's payers, read and add a patient's coverage
+
+  Connect an intake or eligibility system to a patient's insurance. A coverage you add stays inactive until the clinic's staff confirm it. See [Insurance](/insurance).
+
+  - **Payers:** `GET /v1/clinics/{clinic_id}/payers` and `GET /v1/clinics/{clinic_id}/payers/{payer_id}`, permission `payers:read`. Only the payers the clinic has enabled under **Settings → Insurance** are listed.
+  - **Coverage:** read with `GET /v1/clinics/{clinic_id}/coverages` and `…/coverages/{coverage_id}` (`coverage:read`). Add with `POST` (`201`, `Idempotency-Key` required) and change with `PATCH` (`coverage:write`).
+  - **Confirm before active:** a coverage you add is `unconfirmed` and inactive. Staff confirm it at the clinic, and only then can it be used for eligibility checks and claims. Changing a confirmed coverage's payer, member ID or subscriber returns it to `unconfirmed`.
+  - **FHIR:** read a coverage as `Coverage` and a payer as `Organization` with `Accept: application/fhir+json`.
+  - **Permissions:** `payers:read`, `coverage:read` and `coverage:write` can now be given to a key, and the Insurance coverage kind can be requested in an organization's application. See [Permissions](/permissions).
+  - Three new error codes, all `409`: `coverage_exists`, `payer_not_enabled` and `activation_requires_staff`.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API"]} description="v1">
+  ## Conditions: read a patient's problem list and send a diagnosis for review
+
+  The first clinical resource that goes through clinician review. See [Conditions](/conditions).
+
+  - **Read** a patient's problem list: `GET /v1/clinics/{clinic_id}/conditions` and `GET /v1/clinics/{clinic_id}/conditions/{condition_id}`, with permission `conditions:read`. Also available as FHIR `Condition`.
+  - **Send** a new condition, or ask for a change, with `POST` and `PATCH`, permission `conditions:write`. The answer is `202 Accepted` with a `Location` header. Nothing reaches the chart until a clinician accepts it. Marking a condition `entered_in_error` is a retraction, reviewed the same way.
+  - **Follow it** with `GET /v1/clinics/{clinic_id}/submissions/{submission_id}`, or list your own with `review_status`.
+  - **Permissions:** `conditions:read` and `conditions:write` can now be given to a key, and the Conditions kind can be requested in an organization's application. See [Permissions](/permissions).
+  - Two new error codes: `client_reference_conflict` and `submission_not_pending`, both `409`.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API"]} description="v1">
+  ## The FHIR guide now matches the API, and there is a page for SDKs and Postman
+
+  The FHIR guide had drifted from what the API does. It is corrected, and two new pages are added.
+
+  - **[FHIR R4](/fhir)** no longer says FHIR is not deployed. It now says updates are `PATCH` (never `PUT`), that a write is answered in our plain JSON shape, and lists the search parameters each resource accepts.
+  - **[SDKs and Postman](/sdks-and-postman)** says what exists, that the TypeScript and Python libraries are **not published yet**, and how to use the Postman collection against `https://api.clinikehr.com/v1`.
+  - **[Reviewing outside submissions](/reviewing-outside-submissions)** explains pending, confirmed and rejected, and `202 Accepted`. No endpoint uses it yet.
+  - The overview no longer says CRM has no route. CRM contacts and activities are patient-data permissions like the others.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["Portal"]} description="v1">
+  ## Workspace settings have their own sidebar, and your account has its own page
+
+  The **Settings** entry in the dashboard no longer opens a drop-down. Workspace settings now sit in a sidebar of their own (a menu at the top of the page on a phone or tablet), and each page is shown only to the roles that can use it.
+
+  - **Profile and Settings** in the header now opens your own account page — your name, password, two-factor authentication and passkeys, and email preferences. It previously led to a page that did not exist.
+  - See [Workspace settings and your account](/workspace-settings-and-account).
+  - The **API keys** list now fits a phone and pages once you have more than ten keys. Each key shows its first two permissions with a **+N** for the rest, and selecting a key opens a panel with its full permissions, dates, allowed addresses and status. See [Authentication](/authentication#where-the-key-comes-from).
+  - Creating a key and adding a webhook endpoint each have a **Select all** box above their lists, and a key's ID says plainly that it is not the key.
+  - **Documentation** and **API Reference** buttons now sit in the header, just before the **Test / Live** switch, and open this site in a new tab (on a phone they are in the menu).
+  - The **Overview** request card now counts requests made today, and shows how many succeeded, were refused (4xx) or failed (5xx), with a per-day chart. Before, requests made today were left out, so a new workspace could read "No requests in this environment yet."
+  - The **Test / Live** switch is now clear on every page. A strip under the header always says which mode you are in (red on Live), the choice is remembered when you reload or follow a link without it, and **API keys**, **Request logs**, **Webhooks** and **Overview** each say which mode they show. Webhooks now list only the endpoints for the mode you are in. **Members**, **Plan**, **Settings** and the other workspace pages are the same in both modes.
+  - **Agreements** now shows the full [API Terms of Use](/terms-of-use), with the [Acceptable Use Policy](/acceptable-use-policy), and, for an organization applying for patient data, the [Data Protection Addendum for Organizations](/data-protection-addendum). An **Admin** or **Owner** accepts the terms for the workspace. A live key cannot be created until they are accepted; a workspace that already had live keys has 30 days from publication before they pause. See [Workspace settings and your account](/workspace-settings-and-account#accepting-the-api-terms-of-use).
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["Sandbox", "Portal", "Webhooks"]} description="v1">
+  ## Try every resource in your sandbox, with a request to paste for each
+
+  The **Sandbox** page in your workspace now says exactly what is in your sandbox and gives you a ready-to-paste request for each resource. A test key can now hold the patient-data permissions, because it reaches only your workspace's sandbox — invented patients, notes and appointments, never a real clinic.
+
+  - **Patients, notes and appointments:** six invented patients (named "SANDBOX"), four invented notes, and invented services and clinicians with weekly hours. Create, read, change and cancel patients and notes; book and cancel appointments (to move one, cancel it and book again). Nothing is sent to anyone.
+  - **Network search:** searching by name or barcode now returns results from the sample pharmacies, and feedback on a result is accepted.
+  - **Your own medicine codes:** four sample codes, one in each state; list, read, upload and delete them.
+  - **Reset sandbox** puts all of it back to the starting data.
+  - **Webhooks** is the new name of the **Notifications** page; the old address redirects.
+  - **Referred pharmacies** now shows an explanation instead of an error when you have not referred anyone yet.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["Portal", "Webhooks"]} description="v1">
+  ## Manage webhook endpoints and your own medicine codes from the dashboard
+
+  The **Webhooks** (previously called Notifications — the old address redirects) and **Partner codes** pages in your workspace now do what they describe. Both need the **Admin** role or higher in the workspace.
+
+  - **Webhooks:** add an endpoint, send a test event, read the delivery log, replay a delivery that failed, rotate the signing secret, and delete an endpoint. The signing secret is shown once, when you create or rotate it — copy it then. See [Verifying a webhook's signature](/verifying-webhook-signatures).
+  - **Partner codes:** upload a CSV of your own medicine codes, see which matched automatically, which are waiting for a pharmacist's confirmation and which did not match, and delete a code you no longer want. See [Uploading your own medicine codes](/uploading-partner-codes).
+  - The **Connect to a clinic** sheet now says plainly that patient information can't be requested yet: an organization can't receive patient data today, on any plan.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API", "Portal"]} description="v1">
+  ## Find and check a pharmacy across the network, before you have a direct connection
+
+  Two new routes let your organization discover a pharmacy and check what it has, without connecting to it first: [`GET /v1/listings/pharmacies`](/connections#network-search) lists pharmacies that have listed themselves to your organization, and [`POST /v1/listings/search`](/connections#network-search) searches by barcode, NAFDAC number, or name across all of them at once.
+
+  - Requires `listing.profile:read` (for the list) or `listing.availability:read` (for a search) — new scopes, granted the same way as any other connection scope.
+  - A search result's availability can come back `unknown` when a pharmacy's own point-of-sale hasn't synced recently — see [Stock bands](/stock-bands#the-one-place-a-band-is-unknown-network-search) for what that means and why it's never shown as out of stock.
+  - Once you hold a connection to a specific pharmacy, its full listing is also readable directly: `GET /v1/clinics/{clinic_id}/listing/profile` and `.../listing/items`.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["Billing", "Portal"]} description="v1">
+  ## See your workspace's plan and this month's usage before you go live
+
+  Every developer portal workspace now has a plan — **Sandbox** to start, **Essential** or **Enterprise** once you're ready for a live key — with a dashboard page showing exactly where you stand.
+
+  - **Plan & usage**, inside your workspace, shows this month's requests and connected clinics against what's included, and this month's computed overage charge so far, in USD and NGN.
+  - Going over Essential's included requests or connected clinics is billed automatically — a live key is never interrupted mid-month for it. See [Usage and billing](/usage-and-billing).
+  - A live key on a workspace still on the Sandbox plan is refused with `code: "workspace_plan_required"` until the workspace is on a paid plan — see [Plans and pricing](/plans-and-pricing) and [Errors](/errors).
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API", "Portal"]} description="v1">
+  ## Approve, narrow, or revoke exactly what another organization can reach
+
+  A clinic can now approve a connection from an outside organization item by item, instead of an all-or-nothing grant — and see, at any time, exactly what it has shared.
+
+  - `GET /v1/connections` lists every clinic (or, for a test key, your sandbox) a key currently reaches, with the scopes actually granted for each one.
+  - A clinic narrows or revokes what's granted at any time — a revoked connection stops answering on your very next call, nothing to catch or retry around.
+  - See [Connections](/connections).
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["Sandbox", "Portal"]} description="v1">
+  ## Build against a sandbox before you ever touch a real clinic
+
+  Signing up for a [developer portal](https://developer.clinikehr.com) workspace now gets you an `ehr_test_` key immediately — no verification needed — that reaches a fixed, fictional clinic seeded with synthetic inventory. The same router, the same validation, the same error codes as a live key; only the data behind it is fake.
+
+  - A test key can never reach a real clinic, and a live key can never reach the sandbox — each direction is refused, not just discouraged.
+  - Moving to a live key needs your workspace verified (a domain check plus a completed profile) and on a paid plan — see [Authentication](/authentication).
+  - See [the two ways to use this API](/index#two-ways-to-use-this-api) for how a clinic's own key and an organization's key differ.
+</Update>
+
+<Update label="[RELEASE DATE]" tags={["API"]} description="v1">
+  ## Read a clinic's own inventory straight from your own systems
+
+  A clinic can create a key, under its own **Settings → API access**, that reads straight out of its ClinikEHR workspace — no separate account, no separate documentation to reconcile.
+
+  - Three read scopes: `inventory.availability:read` (a band, not a number), `inventory.items:read` (catalogue detail), and `inventory.stock:read` (exact quantities, the most sensitive of the three).
+  - Every list is cursor-paginated and accepts `updated_since`, so a periodic sync only pulls what changed — see [Pagination](/pagination).
+  - Every failure is a consistent `application/problem+json` body with a stable `code` you can branch on — see [Errors](/errors).
+  - See [Inventory](/inventory) and [Getting a key](/index#getting-a-key).
+</Update>

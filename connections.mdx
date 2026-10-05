@@ -1,0 +1,121 @@
+---
+title: "Connections"
+description: "How an organization's key finds the clinics it can reach, connects to a new one, and searches the pharmacy network."
+icon: "/images/icons/link.svg"
+---
+
+<Info>
+  This page is about **organization keys** (from the [developer portal](https://developer.clinikehr.com)). A clinic's own key, created in its own **Settings → API access**, has an implicit connection to itself — see [the last section](#a-clinic-owned-key) below.
+</Info>
+
+An organization's key does not carry a clinic id you choose yourself — it reaches only the clinics that clinic has explicitly agreed to connect to. This page covers three things: finding out what your key can already reach, connecting to a new clinic, and searching the pharmacy network before you have a connection at all.
+
+## Connect to a clinic
+
+There is no directory or search endpoint for finding a specific clinic by name — a clinic can only be found by a one-time **connection code** its owner generates and hands you directly (by phone, email, or however you already talk to them). Requesting a connection, reviewing its status, and everything else about setting one up happens in the [developer portal](https://developer.clinikehr.com), not through this API:
+
+1. Get a connection code from the clinic. They generate it from their own **Settings → API access → Connected organizations**.
+2. In your workspace's portal, open **Connections** and select **Connect to a clinic**. Enter the code and choose what you're asking to access.
+3. The clinic reviews your request and decides what to grant — you may receive less than you asked for, or nothing at all if they decline.
+4. Once approved, the clinic appears in `GET /v1/connections` (below), and a **live** key for your workspace can call the endpoints its granted scopes allow for that clinic.
+
+You can ask a clinic for patient information only for the kinds your organization is **approved for** (apply on **Settings → Verification**). In **Connect to a clinic**, patient-data options you can't pick yet are greyed out, and hovering one says the first thing that is missing: patient data not open yet, your plan, no approval, a kind outside your approval, or the data-protection addendum. A request for a patient-data scope your approval doesn't cover is refused with `approval_required` or `kind_not_approved`. The clinic owner still decides what to grant, and a clinic must be on its **Enterprise** plan to grant patient data.
+
+Your workspace must be **verified**, and on a paid plan, before a **live** key can reach a real clinic this way — see [Plans and pricing](/plans-and-pricing). A **test** key never needs any of that — it always reaches your workspace's own sandbox instead, never a real clinic.
+
+The clinic can narrow what's granted, or revoke the connection entirely, at any time. A revoked connection stops answering on your very next call — there's nothing to catch or retry around.
+
+## List your connections
+
+```
+GET /v1/connections
+```
+
+Needs no path parameter and no specific scope — any valid key may call it. Returns every clinic (or, for a test key, the one sandbox) the key can currently reach.
+
+```bash
+curl "https://api.clinikehr.com/v1/connections" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "clinic_id": "…",
+      "clinic_name": "…",
+      "environment": "live",
+      "granted_scopes": ["inventory.items:read", "inventory.availability:read"],
+      "connected_at": "2026-09-28T10:00:00Z",
+      "expires_at": null,
+      "sandbox": false
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `clinic_id` | The clinic's id — use this in every clinic-scoped inventory call. |
+| `clinic_name` | The clinic's name, or `null` for a sandbox connection. |
+| `environment` | `live` or `test`. |
+| `granted_scopes` | Exactly what the clinic agreed to share with you for this connection — never more than you asked for. |
+| `connected_at` | When the clinic approved this connection, or `null` for a clinic-owned key's own implicit connection to itself. |
+| `expires_at` | When this connection needs to be re-approved, or `null` if it doesn't expire. |
+| `sandbox` | `true` for your workspace's synthetic test data — never a real clinic. |
+
+<Info>
+  A clinic that has switched its own API access off, or a connection that has expired, simply disappears from this list — the same call that would otherwise reach it now returns `not_found` instead.
+</Info>
+
+## Network search
+
+Two routes let you find a pharmacy, and check what it has, **before** you hold a direct connection to it — there's no `clinic_id` in either path, because the whole point is that you don't have one yet.
+
+### Listed pharmacies
+
+```
+GET /v1/listings/pharmacies
+```
+
+Requires `listing.profile:read`. Cursor-paginated (see [Pagination](/pagination)).
+
+- A **live** organization key sees every clinic that has an active connection to your organization granting `listing.profile:read`, and has chosen to be listed.
+- A **test** key sees your workspace's own seeded fictional pharmacies instead — never a real one.
+- A **clinic-owned key** always gets an empty page — a clinic reads its own data, not a network of other clinics.
+
+```bash
+curl "https://api.clinikehr.com/v1/listings/pharmacies?limit=25" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+### Searching by item
+
+```
+POST /v1/listings/search
+```
+
+Requires `listing.availability:read`. Searches by an identifier you already hold, or by name, across every clinic listed to your organization — up to 50 results, no pagination.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/listings/search" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{"item": {"system": "gtin", "value": "6001234567890"}, "near": {"lat": 6.5, "lng": 3.4, "radius_km": 10}}'
+```
+
+A result's `band` can be `unknown` here — see [Stock bands](/stock-bands#the-one-place-a-band-is-unknown-network-search) for what that means and why it's never collapsed into `out`.
+
+<Note>
+  Once you hold a connection, `GET /v1/clinics/{clinic_id}/listing/items` and `GET /v1/clinics/{clinic_id}/listing/profile` read one pharmacy's own listing directly — the same per-clinic authorization as [Inventory](/inventory), scoped by `listing.availability:read` / `listing.profile:read`.
+</Note>
+
+## Automatic acceptance
+
+A clinic may choose to accept a connection's new allergies, conditions, reported medicines or referrals without review. You
+cannot ask for it or see it. A new connection, even to a clinic that had one before, starts with it off. See
+[Automatic acceptance](/automatic-acceptance).
+
+## A clinic-owned key
+
+A key created directly by a clinic (not through a workspace) has an implicit connection to its own data — there is no consent step, and `GET /v1/connections` returns exactly that one clinic with `connected_at`/`expires_at` both `null`. Network search always returns an empty page for this kind of key: a clinic-owned key exists to read that clinic's own records, not to discover other clinics.

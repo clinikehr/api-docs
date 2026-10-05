@@ -1,0 +1,56 @@
+---
+title: "Usage and billing"
+description: "How requests and connected clinics are counted, and what happens when you go over your plan's allowance."
+icon: "/images/icons/chart-line.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+
+<Availability keyKind={['organization']} plan="Essential" note="Enterprise's allowances are set per contract — see Plans and pricing." />
+
+This page is about the **Essential** plan's allowance and overage — the [Plans and pricing](/plans-and-pricing) page covers what each plan includes.
+
+## What counts against your allowance
+
+- **Requests** — every LIVE call your key makes that reaches an adapter (passes authentication, verification, scope and plan checks) counts, for the calendar month, once per successful authorize. A call refused before that point — an invalid key, a missing scope, an unverified workspace — never counts.
+- **Sandbox (test-key) traffic never counts** against a billed allowance. It's tracked separately, for your own visibility only.
+- **Connected clinics** are counted as an average over the month, not a peak or a point-in-time count — a clinic you were connected to for the whole month counts fully; one you connected and disconnected the same day barely moves the number. This is deliberately immune to connecting a burst of clinics right before your bill closes.
+
+## Going over
+
+Essential's allowances are **never a hard stop** — exceeding either one is billed automatically, and your integration keeps working without interruption:
+
+- Extra requests are billed per 1,000 over your included amount.
+- Extra connected clinics are billed per clinic, per month, over your included amount.
+
+Check your workspace's dashboard **Plan & usage** page at any time for this month's usage, whether you're over either allowance, and the computed charge so far — in both USD and NGN. NGN overage/extra-clinic rates render as their own real numbers once set; if either hasn't been priced yet in NGN, that figure shows as "—", never a converted USD number.
+
+## When a call IS refused for usage reasons
+
+Only a **contracted Enterprise plan with a hard cap** refuses a call outright for usage:
+
+```json
+{
+  "type": "https://developer.clinikehr.com/errors/quota_exceeded",
+  "title": "Quota exceeded",
+  "status": 429,
+  "code": "quota_exceeded",
+  "detail": "This workspace has used its included requests for this month under its current contract.",
+  "request_id": "req_01example"
+}
+```
+
+Connecting a clinic beyond a hard-capped contract's included amount is refused the same way, before the connection is even created:
+
+```json
+{
+  "type": "https://developer.clinikehr.com/errors/limit_reached",
+  "title": "Limit reached",
+  "status": 403,
+  "code": "limit_reached",
+  "detail": "This workspace has reached its connected-clinic limit under its current contract.",
+  "request_id": "req_01example"
+}
+```
+
+Essential never returns either of these codes for usage — it always bills instead. See [Errors](/errors) for the full error shape.

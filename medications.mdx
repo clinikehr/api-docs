@@ -1,0 +1,253 @@
+---
+title: "Medications"
+description: "Read the medicines a patient reports and the prescriptions written for them, and send a reported medicine for a clinician to review. Prescriptions are read-only."
+icon: "/images/icons/prescription-bottle-medical.svg"
+---
+
+Two different things are called "medications", and this page keeps them apart.
+
+- A **reported medicine** (a *medication statement*) says "the patient, or an outside system, reports taking this". Reading the list is immediate. **Writing is different:** a medicine you send is held for a clinician to review, and only a clinician's decision puts it on the chart. Read [Reviewing outside submissions](/reviewing-outside-submissions) first if you have not already, because everything about sending builds on it.
+- A **prescription** is an order the clinic wrote or sent electronically. It drives dispensing and billing. **You can only read prescriptions.** No request can create, change or cancel one, and none ever will.
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List a patient's reported medicines | `GET /v1/clinics/{clinic_id}/medication-statements?patient_id=…` | `medications:read` |
+| Read one reported medicine | `GET /v1/clinics/{clinic_id}/medication-statements/{medication_statement_id}` | `medications:read` |
+| Send a reported medicine | `POST /v1/clinics/{clinic_id}/medication-statements` | `medications:write` |
+| Ask for a change to one | `PATCH /v1/clinics/{clinic_id}/medication-statements/{medication_statement_id}` | `medications:write` |
+| List a patient's prescriptions | `GET /v1/clinics/{clinic_id}/prescriptions?patient_id=…` | `medications:read` |
+| Read one prescription | `GET /v1/clinics/{clinic_id}/prescriptions/{prescription_id}` | `medications:read` |
+| Follow what happened to something you sent | `GET /v1/clinics/{clinic_id}/submissions/{submission_id}` | `medications:write` (even to read) |
+
+The patient must be one your key is allowed to see. A patient the clinic has restricted, or a record that does not
+exist, returns `404` with `code: "not_found"`. The two are never told apart. See [Errors](/errors).
+
+## Reported medicines
+
+### What one looks like
+
+```json
+{
+  "id": "6a1d2c3e-1111-4a2b-9c3d-0123456789ab",
+  "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "medication": { "text": "Metformin 500 mg", "code": { "system": "rxnorm", "code": "6809", "display": "Metformin" } },
+  "dosage": { "text": "500 mg", "route": "by mouth", "frequency": "twice daily" },
+  "status": "active",
+  "effective": { "start": "2025-03-01", "end": null },
+  "reason": "Type 2 diabetes",
+  "note": null,
+  "recorded_by": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+  "source": "api",
+  "origin_assistant_name": "Acme Intake",
+  "verification_status": "confirmed",
+  "review_status": "confirmed",
+  "submission_id": null,
+  "decision_reason": null,
+  "created_at": "2026-10-01T09:00:00Z",
+  "updated_at": "2026-10-01T09:00:00Z"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `medication.text` | The medicine as it was reported, up to 200 characters. It cannot be changed afterwards: a different medicine is a new report. |
+| `medication.code` | `null`, or a `system` and a `code` together. `display` is filled only for `rxnorm`, from our own verified list, never from text you sent. |
+| `dosage` | `text`, `route` and `frequency`, each free text exactly as you sent it, or `null`. They are never interpreted. |
+| `status` | `active`, `completed`, `stopped`, `on_hold`, `not_taken` or `entered_in_error`. |
+| `effective` | `start` and `end` dates, or `null`. |
+| `source` | `clinic` if the clinic recorded it, `api` if it began as an outside submission a clinician accepted. |
+| `verification_status` | `confirmed` for anything on the chart. `unconfirmed` for a report you sent that is still waiting. |
+| `review_status` | `confirmed`, `pending`, `rejected` or `withdrawn`. |
+| `decision_reason` | The clinician's reason, only on a `rejected` item. |
+
+A report you sent that is still waiting has `"id": null`: it has no place on the chart yet. Use `submission_id` to
+follow it. **A reported medicine is not a prescription**: it says what the patient reports, and records no order, supply or
+dose instruction from the clinic.
+
+### Codes
+
+`medication.code.system` is `rxnorm` or `local`. Send both parts or neither, or just the medicine's name.
+
+- **`rxnorm`** is checked against a verified list of medicines. A code that is not on it is refused with `invalid_request`, and the detail says the code is not recognised. A real RxNorm code that is not on our list is refused too: send the medicine as text, or with a `local` code. Never send an RxNorm code from memory.
+- **`local`** is your own code, up to 64 characters.
+
+A medicine with no recognised code is still accepted and reviewed. It is simply handled differently by the clinic's pharmacy checks (see below).
+
+### List reported medicines
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/medication-statements?patient_id=PATIENT_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Meaning |
+| --- | --- |
+| `patient_id` | **Required.** The patient to list for. |
+| `review_status` | `confirmed` (the default), `pending`, or `all`. |
+| `status` | One of the six statuses: only confirmed medicines with that status. |
+| `updated_since` | RFC 3339 timestamp: only items changed since then. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+- **`confirmed`** is the patient's reported list as it stands on the chart.
+- **`pending`** is the reports **your own key or organization** sent that are waiting for a decision, plus those declined, each with its `review_status`. You never see another party's submissions.
+- **`all`** is both together.
+
+An item with `review_status` other than `confirmed` is not on the chart. Do not show it to a person as part of their record.
+**An empty list does not mean the patient takes no medicines.** It means nothing has been confirmed.
+
+### Send a reported medicine
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/medication-statements" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "patient_id": "PATIENT_ID",
+        "medication": { "text": "Metformin 500 mg" },
+        "dosage": { "text": "500 mg", "route": "by mouth", "frequency": "twice daily" },
+        "status": "active",
+        "effective_start": "2025-03-01",
+        "client_reference": "intake-2026-10-04-0017"
+      }'
+```
+
+| Field | Notes |
+| --- | --- |
+| `patient_id` | Required. |
+| `medication` | Required. `text`, 1 to 200 characters, and optionally a `code` with `system` and `code`. |
+| `dosage` | Optional. `text` (up to 500 characters), `route` (up to 100) and `frequency` (up to 200). |
+| `status` | `active` (the default), `completed`, `stopped`, `on_hold` or `not_taken`. Not `entered_in_error` on a new report. An `active` medicine cannot have an end date in the past. |
+| `effective_start`, `effective_end` | Optional dates. The end cannot be before the start. The start cannot be more than a day ahead. |
+| `reason` | Optional, up to 500 characters. |
+| `note` | Optional, up to 2000 characters. |
+| `client_reference` | Optional. Your own id for the item. Reusing one for a different item returns `409 client_reference_conflict`. |
+| `origin_assistant_name` | Optional. The name of your system. The clinic's reviewer sees it as the sender. |
+
+A field not listed here is refused with `invalid_request`, naming it. The same medicine can be reported more than once:
+there is no duplicate refusal.
+
+**`Idempotency-Key` is required on `POST`** (optional on `PATCH`). See [Retries and duplicates](/retries-and-idempotency).
+
+#### The answer is 202, not 201
+
+```http
+HTTP/1.1 202 Accepted
+Location: /v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID
+```
+
+The body is the submission, showing `"status": "pending"`. A `202` is a receipt. It is **not** a medicine on the chart.
+
+### After you send one
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+- `pending`: waiting for a clinician.
+- `confirmed`: a clinician accepted it. The report is on the chart, recorded under the clinician's name, with `source: "api"`.
+- `rejected`: declined, with the reason. Do not resend it unchanged.
+- `withdrawn`: you took it back while it was pending.
+
+Only the key or organization that sent a submission can read it. Anyone else gets `404`.
+
+### Ask for a change
+
+```bash
+curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/medication-statements/MEDICATION_STATEMENT_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "stopped", "effective_end": "2026-09-30" }'
+```
+
+Send only the fields that change: any of `status`, `dosage`, `effective_start`, `effective_end`, `reason`, `note`. The medicine
+itself is never changeable. The answer is `202 Accepted` and the change waits for review. Setting `status` to
+`entered_in_error` asks the clinic to mark the report as **never having been true**; it must be sent alone, and once a
+report is marked so it cannot be changed again. A report already marked `entered_in_error` cannot be changed.
+
+### How the clinic's pharmacy uses a reported medicine
+
+A confirmed reported medicine **is used in the pharmacy's drug interaction checks** for that patient, while it is active:
+
+- With a recognised `rxnorm` code, it is checked for interactions against what is being dispensed.
+- Without one (free text, a `local` code), it is **not matched by its name**. The pharmacist is shown it as **not checked**, in the patient's own words, so it is never invisible and never mistaken for cleared.
+- `completed`, `stopped`, `on_hold`, `not_taken` and `entered_in_error` medicines, and ones whose end date has passed, are not used.
+
+So a code that is recognised makes the report more useful, and a wrong one is refused rather than guessed at.
+
+A clinic can also choose to accept new reported medicines without review. Then the answer to your send already shows `review_status: "confirmed"` and `accepted_automatically: true`, and the reported medicine reads `accepted_by: "automatic"` and `verification_status: "unconfirmed"` until a clinician reviews it. `reviewed_at` and `reviewed_by_staff_id` are `null` until then. A change is always reviewed. See [Automatic acceptance](/automatic-acceptance).
+
+## Prescriptions
+
+A prescription is read-only, and minimal on purpose. It carries the drug, the dose, how often, its status, and when it was written, and nothing else.
+
+```json
+{
+  "id": "8b2c3d4e-5555-4a2b-9c3d-0123456789ab",
+  "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "medication": { "name": "Amoxicillin" },
+  "dosage": "500 mg",
+  "frequency": "three times daily",
+  "status": "dispensed",
+  "source": "clinic",
+  "prescribed_at": "2026-09-20T10:15:00Z",
+  "updated_at": "2026-09-21T08:00:00Z"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `medication.name` | The drug's name. Never a price, brand, batch or manufacturer. |
+| `dosage`, `frequency` | As the prescriber wrote them, or `null`. |
+| `status` | `pending`, `dispensed`, `cancelled` or `out_of_stock`. A prescription sent electronically can also read `unknown` (below). |
+| `source` | `clinic` for a prescription written in ClinikEHR, `eprescribe` for one sent electronically. |
+| `prescribed_at`, `updated_at` | When it was written, and when it last changed. |
+
+Nothing about payment, who dispensed it, notes, instructions, the visit it came from, ward or schedule detail, or a
+patient's restricted records is ever returned. A prescription the clinic has marked sensitive is not returned at all.
+
+**Electronically sent prescriptions are included.** A prescription sent through the clinic's e-prescribing connection
+appears in the same list with `source: "eprescribe"`, and one that is also a ClinikEHR prescription appears once. The
+vendor's own detail is never returned. The e-prescribing service describes a prescription's progress in its own
+words, so we translate it: cancelled or voided becomes `cancelled`, filled or picked up becomes `dispensed`, sent or
+pending becomes `pending`, and anything we do not recognise becomes `unknown`. Treat `unknown` as "we cannot tell".
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/prescriptions?patient_id=PATIENT_ID&status=dispensed" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Meaning |
+| --- | --- |
+| `patient_id` | **Required.** |
+| `status` | `pending`, `dispensed`, `cancelled`, `out_of_stock` or `unknown`. |
+| `updated_since` | RFC 3339 timestamp. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+A request to create or change a prescription is not a route: it returns `404` or `405`. A prescription written by
+the clinic stays under the clinic's control.
+
+## FHIR
+
+Send `Accept: application/fhir+json` to read a reported medicine as a `MedicationStatement`, or a prescription as a
+`MedicationRequest` (always `intent: "order"`). A prescription's name is carried as text only, with no code, and its
+`source` rides in an extension so an e-prescribed one can be told apart. **FHIR is not accepted as input:** send and
+change reported medicines with the JSON routes above, and prescriptions are not writable. A FHIR body is refused with an
+`OperationOutcome`. See [FHIR R4](/fhir).
+
+## The Patients routes
+
+The patient's older `current_medications` list is no longer writable through the Patients routes: it is refused, and
+reported medicines go through this page instead. It stays visible as the clinic's legacy list, and is **not** used by
+the pharmacy's interaction checks.
+
+## A worked example
+
+1. Your intake system reads "metformin 500 mg twice daily" on a form. It sends `POST …/medication-statements` with the medicine, the dosage and an `Idempotency-Key`. The answer is `202`, with a `Location` header.
+2. `GET …/medication-statements?patient_id=…` does not show it. Nothing is on the chart.
+3. A clinician opens **Outside submissions** at the clinic, reads it and selects **Accept**. You read the submission again and it is `confirmed`.
+4. `GET …/medication-statements?patient_id=…` now returns it with `source: "api"` and your `origin_assistant_name`. The clinic's **Medications reported** list shows a quiet line, **From** and your name, beside it. If it has a recognised code, the pharmacy now checks it while it is active.
+5. `GET …/prescriptions?patient_id=…` is unchanged: reporting a medicine never creates a prescription.
+
+A test key reaches only your workspace's sandbox, which holds invented patients with invented reported medicines and prescriptions, so you can try the requests above without touching a real chart.

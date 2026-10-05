@@ -1,0 +1,67 @@
+---
+title: "Errors"
+description: "The error shape every failed request returns, and the stable codes you can branch your code on."
+icon: "/images/icons/triangle-exclamation.svg"
+---
+
+Every error response is `application/problem+json` — a small, consistent JSON body, regardless of which endpoint failed.
+
+```json
+{
+  "type": "https://developer.clinikehr.com/errors/not_found",
+  "title": "Not found",
+  "status": 404,
+  "code": "not_found",
+  "request_id": "req_01example"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `type` | A link to documentation for this exact error, at `https://developer.clinikehr.com/errors/<code>`. Useful for a human reading logs; don't parse it. |
+| `title` | A human-readable summary. Don't parse this either — it may be reworded. |
+| `status` | The HTTP status code, repeated in the body for convenience. |
+| `code` | The **stable** machine-readable string. This is the one to branch your code on — it will not change. |
+| `detail` | A more specific reason, when one exists (for example, which scope is missing). Human-readable — branch on `code`, not this. |
+| `request_id` | Include this when you contact support about a specific failed request. |
+
+## Codes
+
+| Code | HTTP status | Means |
+| --- | --- | --- |
+| `invalid_key` | `401` | The key is missing, malformed, unknown, revoked, expired, or the secret is wrong. One code for all of these — see [Authentication](/authentication). |
+| `not_found` | `404` | The record doesn't exist, **or** it exists but this key can't reach it (wrong clinic, for example). These two situations return the identical response on purpose — the difference would tell you something exists that you can't see. |
+| `scope_missing` | `403` | The key doesn't carry the scope this endpoint needs. See [Permissions](/permissions). |
+| `plan_required` | `403` | The **clinic's** current plan doesn't include this resource at all, regardless of what your key was granted. |
+| `ip_not_allowed` | `403` | The request came from an address this key's allow-list doesn't cover. Names nothing about which addresses ARE allowed. |
+| `invalid_request` | `400` | The request body or query string failed validation. This includes a medicine or diagnosis code that is not recognised (an RxNorm or ICD-10 code we do not hold), which is refused rather than saved. See [Medications](/medications#codes) and [Conditions](/conditions#codes-and-code-systems). It also covers a change to a referral the clinic has already acted on: see [Referrals](/referrals#change-or-take-back-a-referral). |
+| `rate_limited` | `429` | You've exceeded the request limit for this key. See [Rate limits](/rate-limits). |
+| `sandbox_only` | `403` | A test key asked for a real `clinic_id`. A test key may reach only its own workspace's sandbox — see [Authentication](/authentication). |
+| `not_verified` | `403` | A live organization key asked for a clinic while its workspace's verification isn't current. |
+| `workspace_plan_required` | `403` | A live organization key's workspace is on the Sandbox plan. See [Plans and pricing](/plans-and-pricing). |
+| `quota_exceeded` | `429` | A **contracted Enterprise** workspace has used its included requests for the month under a hard cap. Essential is billed for overage instead — see [Usage and billing](/usage-and-billing). |
+| `limit_reached` | `403` | A **contracted Enterprise** workspace has reached a hard-capped limit (for example, connected clinics). |
+| `not_available` | `403` | A request for a patient-data scope arrived while patient data is not open on the platform. |
+| `approval_required` | `403` | An organization's key, or a connection request, asked for a patient-data scope, but the organization has no current approval for patient data. Apply on **Settings → Verification**; a revoked approval returns this on the next request. |
+| `kind_not_approved` | `403` | The organization is approved for patient data, but not for the kind this scope belongs to (on a key or on a connection request). |
+| `terms_required` | `403` | The workspace has not accepted the current API Terms of Use. Creating a live key is refused at once; a live key's requests are refused once the notice period after the terms were published has ended. An owner or administrator accepts on **Settings → Agreements**. Test keys are never affected. |
+| `client_reference_conflict` | `409` | You sent a `client_reference` you have already used for a different item. Use a new reference, or resend the original item. See [Conditions](/conditions). |
+| `submission_not_pending` | `409` | You tried to change an item that a clinician has already decided, or that was withdrawn. Send a new item instead. See [Reviewing outside submissions](/reviewing-outside-submissions). |
+| `coverage_exists` | `409` | The patient already has a coverage with that payer. The error carries the existing coverage's id when you may see that patient; change it with `PATCH` instead. See [Insurance](/insurance#one-coverage-per-patient-and-payer). |
+| `payer_not_enabled` | `409` | The `payer_id` is not one of the payers the clinic has enabled. Ask the clinic to enable it under **Settings → Insurance**. See [Insurance](/insurance#the-payer-must-be-enabled). |
+| `activation_requires_staff` | `409` | You asked for a coverage to be active. Only the clinic's staff can activate one, by confirming it. See [Insurance](/insurance#a-coverage-you-add-is-not-active-until-staff-confirm-it). |
+| `care_provider_clinic_managed` | `409` | You tried to change or remove an outside care provider your app did not add. Only the clinic can change it. The contact stays readable, and its `editable` field is `false`. See [Outside care providers](/care-providers#you-change-only-what-your-app-added). |
+| `note_not_editable` | `409` | You tried to change a visit (or a note) that your app can no longer change: a clinician has edited the draft since your app opened it, or has signed or finalised it. Read it again to see what the clinic recorded. See [Encounters](/encounters#change-a-visits-details). |
+| `agreement_required` | `403` | The data-protection addendum (for an organization's key) or the API data agreement (for a clinic's own key) has not been accepted in its current version. |
+
+<Note>
+  This list covers every resource live today. As new resources ship (patients, notes, appointments, inventory writes, drug requests — see the [overview](/index#what-isnt-available-yet)), they will add their own codes without changing what any code above means — see [Versioning](/versioning).
+</Note>
+
+<Warning>
+  `not_found` and `scope_missing` can look similar from the outside, but they mean different things: `not_found` means "this doesn't exist, or isn't yours to see" — you'll never learn which. `scope_missing` means the record exists and you could see it, if your key had the right scope. Don't infer a record's existence from getting a `403` instead of a `404`.
+</Warning>
+
+## What never appears in an error
+
+No error body ever includes a raw database message, a stack trace, or any detail about a clinic's internal data beyond what the request itself already revealed. If you see anything that looks like an internal error message rather than one of the codes above, treat it as a bug and include the `request_id` when you report it.

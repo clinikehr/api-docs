@@ -1,0 +1,112 @@
+---
+title: "Reviewing outside submissions"
+description: "How an item sent in from outside reaches a patient's chart only after a person at the clinic confirms it."
+icon: "/images/icons/shield-check.svg"
+---
+
+<Info>
+  **Conditions, allergies, reported medicines and referrals use review today.** Sending them is covered in [Conditions](/conditions),
+  [Allergies](/allergies), [Medications](/medications) and [Referrals](/referrals).
+</Info>
+
+Some information is too important to let a program write straight into a patient's chart. For those
+kinds of information the API does **not** change the chart when you send it. It places your item in
+the clinic's review queue, and a person at the clinic decides.
+
+## The three states you will see
+
+| State | What it means | What is on the chart |
+| --- | --- | --- |
+| **Pending** | The item has arrived and is waiting for a person at the clinic. | Nothing. The item is not part of the record. |
+| **Confirmed** | A clinician accepted it. | The item is now on the chart, recorded under the clinician's name. |
+| **Rejected** | A clinician declined it and gave a reason. | Nothing. The chart is unchanged. |
+
+An item you send can also be **withdrawn** (you took it back while it was still pending) or
+**replaced** by a newer item. A decision is final: a confirmed or rejected item is never reopened. If
+something needs changing after it is confirmed, you send a new item that asks for the change, and it
+is reviewed the same way. Nothing is ever deleted from a chart through the API.
+
+## 202 Accepted
+
+When you send an item that needs review, the response status is **`202 Accepted`**, not `200` or
+`201`. It means "received, not yet applied". The body shows the item as pending. Do not treat a `202`
+as a record that now exists on the chart. Treat it as a receipt.
+
+To find out what happened, read the item again later. A list can be filtered to what you sent and
+what is still waiting. You will see it move to confirmed or rejected, with the reason when it was
+rejected. You only ever see items sent with **your own** key or organization, never another party's.
+
+Sending the same item twice, with the same `Idempotency-Key`, returns the first response again. See
+[Retries and duplicates](/retries-and-idempotency).
+
+## Who decides
+
+The clinic's own staff decide, inside ClinikEHR:
+
+- Anything clinical (allergies, medications, conditions) needs a clinician, or the clinic's manager or owner. For a
+  condition, a clinician also needs permission to amend the problem list. An allergy or a reported medicine needs nothing more.
+- A referral can be added to the clinic's list by any member of staff, and every later step (accept, decline, book, complete) is any member of staff's decision too.
+
+A reviewer sees that the item is **from an outside system**, what it says, who sent it and when. A
+patient the clinic has restricted is not visible to a reviewer who has no access to that patient, and
+an item for one is never shown to them.
+
+## Example: an allergy
+
+Sending an allergy works the same way: `202 Accepted`, a `Location` header, a pending submission.
+
+1. Your system sends `POST …/allergies` for "Peanuts". The patient's allergy list at the clinic is unchanged.
+2. A clinician reviews it in **Outside submissions** and selects **Accept**. The allergy is on the chart.
+3. If the clinician declines it, you read `rejected` and the reason, and the chart is unchanged.
+
+See [Allergies](/allergies#a-worked-example) for the full walk-through.
+
+## Example: a reported medicine
+
+Sending a reported medicine works the same way: `202 Accepted`, a `Location` header, a pending submission.
+
+1. Your system sends `POST …/medication-statements` for "Metformin 500 mg". The patient's reported list at the clinic is unchanged, and no prescription is created.
+2. A clinician reviews it in **Outside submissions** and selects **Accept**. The medicine is on the chart as something the patient reports taking.
+3. If the clinician declines it, you read `rejected` and the reason, and the chart is unchanged.
+
+See [Medications](/medications#a-worked-example) for the full walk-through.
+
+## Example: a referral
+
+Sending a referral works the same way: `202 Accepted`, a `Location` header, a pending submission.
+
+1. Your system sends `POST …/referrals` for a cardiology consultation. The clinic's referral list is unchanged.
+2. A member of staff reviews it in **Review outside data** and selects **Accept**. It joins the clinic's list as `received`. That does not accept the referral or book anything: the clinic decides that next.
+3. If staff decline it, you read `rejected` and the reason, and the list is unchanged.
+
+See [Referrals](/referrals#a-worked-example) for the full walk-through.
+
+## When a clinic accepts automatically
+
+A clinic can choose, per key or per connected organization and per kind, to accept **new** items without review. You cannot
+request or detect that. When it is on, the answer to your send is still `202`, but the body already shows
+`review_status: "confirmed"` and `accepted_automatically: true`, and the record carries `accepted_by: "automatic"` and
+`verification_status: "unconfirmed"` until a clinician reviews it. Updates, retractions and "no known allergies" are never
+accepted automatically, and unusual volume pauses it, so your items wait for review again. A rolled key or a new connection
+starts with it off. See [Automatic acceptance](/automatic-acceptance).
+
+## What this means for your integration
+
+- Do not tell a person an item is "on their record" until it is confirmed. Read `review_status` in the answer to your send: a clinic can accept automatically, so it may already be `confirmed`.
+- Expect a decision to take as long as the clinic takes. There is no time limit you can rely on.
+- Show a rejected item's reason to whoever needs to fix it. Do not resend the same item unchanged.
+- Poll for the outcome. Notification of a decision by webhook is not available for these items yet.
+
+## Example: a condition
+
+Sending a condition returns `202 Accepted`, a `Location` header pointing at the submission, and a body that
+shows the item as pending. A clinician has not seen it yet, so the chart is unchanged.
+
+```http
+HTTP/1.1 202 Accepted
+Location: /v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID
+```
+
+Read the submission later to see what happened to it. While it waits you will see `"status": "pending"`. Once a
+clinician has decided you will see `"confirmed"`, or `"rejected"` with the reason. See
+[Conditions](/conditions#after-you-send-one) for the full walk-through.

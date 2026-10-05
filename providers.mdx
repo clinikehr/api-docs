@@ -1,0 +1,100 @@
+---
+title: "Providers: the clinic's clinicians"
+description: "Read the directory of a clinic's clinical staff: name, role, specialty, NPI and licence. It is read-only, and it holds no contact details."
+icon: "/images/icons/link.svg"
+---
+
+The provider directory lists the clinicians at a clinic who can write notes. Use it to show a patient who they will
+see, to match a clinician in your system to one in ClinikEHR, or to find the `clinician_id` to send when a clinician
+is asked for.
+
+It is **read-only**. No request can add a provider, change one, or change a credential: the clinic manages its team in
+ClinikEHR.
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List the clinic's providers | `GET /v1/clinics/{clinic_id}/providers` | `providers:read` |
+| Read one provider | `GET /v1/clinics/{clinic_id}/providers/{provider_id}` | `providers:read` |
+
+A provider carries no patient information, so `providers:read` is not a patient-data permission: the add-on, the
+agreement and the organization's data approval are not needed. See [Permissions](/permissions).
+
+A provider that does not exist, belongs to another clinic, is not a clinician, or whose membership has expired
+returns `404` with `code: "not_found"`. The cases are never told apart. See [Errors](/errors).
+
+## Who is listed
+
+A member of staff is listed when the clinic gives them a clinical role (a doctor, nurse or other clinician who can write
+notes) and their membership has not expired. Reception, billing, accounting, cashier and similar roles are not listed. A
+clinic owner who has no staff record is not listed.
+
+A provider's `id` is the same `id` the clinician pickers in ClinikEHR use, so it can be sent as `clinician_id`
+wherever a clinician is asked for.
+
+## What a provider looks like
+
+```json
+{
+  "id": "3c1d9a40-6666-4b7a-8c1d-456789abcdef",
+  "display_name": "Amara Okafor",
+  "title": "Dr.",
+  "role": "doctor",
+  "specialties": [
+    { "code": "family-medicine", "display_name": "Family Medicine", "is_primary": true }
+  ],
+  "department": { "id": "5e2f0b61-7777-4c8b-9d2e-56789abcdef0", "name": "Outpatient" },
+  "npi": "1234567893",
+  "licenses": [
+    { "number": "A-104422", "type": "MD", "state": "NY", "expires_on": "2027-06-30" }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `display_name` | First and last name. |
+| `title` | The title the clinician uses, or `null`. |
+| `role` | The clinician's role at this clinic, such as `doctor`. |
+| `specialties` | Their active specialties, the primary one first. |
+| `department` | Their department, or `null`. |
+| `npi` | Their National Provider Identifier, or `null`. |
+| `licenses` | Each licence on file with its number, type, state and expiry date. Empty if none is on file. |
+
+A licence is shown as recorded, including one whose date has passed. Read `expires_on` before you rely on it.
+
+### What is never returned
+
+- Email address, phone number and home address.
+- DEA registration numbers.
+- Anything about how the clinician signs in, who supervises them, or what they are allowed to do in ClinikEHR.
+- Whether a licence or NPI has been verified. The directory says what is on file, not that it was checked.
+
+## List providers
+
+| Query parameter | Meaning |
+| --- | --- |
+| `q` | Part of the provider's name. At least 2 characters; shorter is refused with `invalid_request`. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/providers?q=okafor" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+Each read is recorded in the clinic's audit trail, as every read of clinic data is.
+
+## As FHIR
+
+Send `Accept: application/fhir+json` and a list becomes a `Bundle` of `Practitioner`, a single read a bare
+`Practitioner`. The NPI is an `identifier`, each licence a `qualification`, and the role, title, department and
+specialties ride as extensions. See [FHIR](/fhir). `PractitionerRole` is not available yet.
+
+## Test keys
+
+A test key sees three fictional providers, named `SANDBOX …`, with obviously fictional NPIs and licences. It never sees
+a real clinic's team.
+
+## Outside clinicians are a different resource
+
+A patient's own doctor, referrer or specialist is not a member of the clinic's team. Those contacts are in
+[Outside care providers](/care-providers).

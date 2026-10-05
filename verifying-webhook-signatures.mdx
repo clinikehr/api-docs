@@ -1,0 +1,121 @@
+---
+title: "Verifying a webhook's signature"
+description: "How to prove a webhook really came from ClinikEHR, with a worked example in two languages."
+icon: "/images/icons/file-signature.svg"
+---
+
+<Info>
+  **You manage webhooks from the developer dashboard.** Open your workspace's **Webhooks** page (Admin role
+  or higher) to add an endpoint, copy its signing secret, send a test event, read the delivery log, replay a delivery
+  that failed, and rotate the secret. The secret is shown **once**, when the endpoint is created or rotated — copy it
+  then. Outside Production, only test-mode endpoints on a Sandbox-plan workspace are ever called; a live endpoint is
+  never called outside production.
+</Info>
+
+Every webhook is signed, so you can confirm it came from ClinikEHR and was not altered or replayed by someone
+else, before you act on it.
+
+## The headers
+
+Each delivery carries three headers:
+
+| Header | Meaning |
+| --- | --- |
+| `webhook-id` | A unique id for this delivery attempt. |
+| `webhook-timestamp` | When the delivery was sent, as Unix seconds. |
+| `webhook-signature` | One or more space-separated signatures, each `v1,<base64 value>`. |
+
+## What gets signed
+
+The signature covers the exact bytes of the id, the timestamp, and the raw request body, joined by periods:
+
+```
+signed_content = "{webhook-id}.{webhook-timestamp}.{raw_request_body}"
+```
+
+Use the **raw** body — not a re-serialized version of the parsed JSON, which can byte-for-byte differ from what was
+sent (key order, whitespace) and would make a correct signature look wrong.
+
+## Computing the signature
+
+Your endpoint's signing secret looks like `whsec_` followed by 48 lowercase hex characters. Decode the hex characters
+to their raw bytes first — the secret is not used as a literal string.
+
+```
+secret (as given to you) = "whsec_6ec4b1a92f6cf9e6cdf5f4f6c6a9c2e29f6a6c9d2e6f5c4b"
+key_bytes = the 24 raw bytes those 48 hex characters decode to
+```
+
+Compute an HMAC-SHA256 of `signed_content` using `key_bytes`, base64-encode the result, and prefix it with `v1,`.
+Compare it against **each** value in `webhook-signature` (there may be more than one during a secret rotation — see
+below) using a constant-time comparison, never a plain `===`/`==`.
+
+<CodeGroup>
+
+```js Node.js
+const crypto = require('crypto')
+
+function verifyClinikEHRSignature({ id, timestamp, rawBody, header, secret }) {
+  const keyBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'hex')
+  const signedContent = `${id}.${timestamp}.${rawBody}`
+  const expected = 'v1,' + crypto.createHmac('sha256', keyBytes).update(signedContent).digest('base64')
+
+  const candidates = header.split(' ')
+  return candidates.some((candidate) => {
+    if (candidate.length !== expected.length) return false
+    return crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(expected))
+  })
+}
+
+// Worked example — every value below is made up, not a real secret or delivery.
+const ok = verifyClinikEHRSignature({
+  id: 'evt_test',
+  timestamp: '1700000000',
+  rawBody: '{"hello":"world"}',
+  header: 'v1,g0/GKvJ9tW+X8y5c7ZzKz6f1234567890abcdefgh+ijklmn=',
+  secret: 'whsec_6ec4b1a92f6cf9e6cdf5f4f6c6a9c2e29f6a6c9d2e6f5c4b',
+})
+```
+
+```python Python
+import hashlib
+import hmac
+import base64
+
+def verify_clinikehr_signature(id, timestamp, raw_body, header, secret):
+    key_bytes = bytes.fromhex(secret.removeprefix("whsec_"))
+    signed_content = f"{id}.{timestamp}.{raw_body}".encode()
+    digest = hmac.new(key_bytes, signed_content, hashlib.sha256).digest()
+    expected = "v1," + base64.b64encode(digest).decode()
+
+    candidates = header.split(" ")
+    return any(hmac.compare_digest(candidate, expected) for candidate in candidates)
+
+# Worked example — every value below is made up, not a real secret or delivery.
+ok = verify_clinikehr_signature(
+    id="evt_test",
+    timestamp="1700000000",
+    raw_body='{"hello":"world"}',
+    header="v1,g0/GKvJ9tW+X8y5c7ZzKz6f1234567890abcdefgh+ijklmn=",
+    secret="whsec_6ec4b1a92f6cf9e6cdf5f4f6c6a9c2e29f6a6c9d2e6f5c4b",
+)
+```
+
+</CodeGroup>
+
+## Also check the timestamp
+
+Reject a delivery whose `webhook-timestamp` is too far in the past (a replayed request) or the future (a clock
+skew you can't explain) — five minutes either way is a reasonable window. This is a separate check from the
+signature itself; a valid signature on an old, replayed request is still a replay.
+
+## Secret rotation — why you may see two signatures
+
+Rotating an endpoint's secret does not invalidate deliveries in flight. For the rotation's overlap window (24 hours
+by default), `webhook-signature` carries **two** `v1,...` values, one for the outgoing secret and one for the new
+one, space-separated in the single header. Verify against a signature that matches **either** — never require both.
+
+## See also
+
+- [Handling retries and duplicates](/retries-and-idempotency)
+- [Permissions](/permissions) — what a webhook's event type requires

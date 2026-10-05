@@ -1,0 +1,83 @@
+---
+title: "Automatic acceptance"
+description: "What you see when a clinic chooses to accept your items without review: the item is already on the chart, marked as automatic and unconfirmed until a clinician reviews it."
+icon: "/images/icons/shield-check.svg"
+---
+
+<Info>
+  This is the clinic's choice, never yours. You cannot ask for it, switch it on, or see beforehand whether it is on. Plan
+  for both outcomes: an item that waits for review, and an item that is already on the chart.
+</Info>
+
+Allergies, conditions, reported medicines and referrals normally wait in the clinic's review queue until a
+clinician decides ([Reviewing outside submissions](/reviewing-outside-submissions)). A clinic's owner or manager can
+choose, for one key or for one connected organization and for each kind separately, to accept **new** items from it
+straight away. It is off until the clinic turns it on.
+
+## What the answer looks like
+
+Sending an item is still `POST`, and the answer is still `202 Accepted` with a `Location` header. **Read the body, not
+the status code.** When the clinic accepts automatically, the submission in the body is already decided:
+
+```json
+{
+  "id": "SUBMISSION_ID",
+  "review_status": "confirmed",
+  "accepted_automatically": true,
+  "result_record_id": "RECORD_ID"
+}
+```
+
+- `review_status` is `confirmed` and `result_record_id` is the new record.
+- `accepted_automatically` is `true`. It is `false` for every item a person at the clinic decided, and for an item that is still waiting.
+- If you send the same item again with the same `Idempotency-Key`, you get the same answer back, not a second record.
+
+## What the record shows
+
+The allergy, condition, reported medicine or referral you read afterwards carries these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `accepted_by` | `automatic` when the clinic's own setting accepted it. `clinic` when a person at the clinic did. `null` while the item has not been accepted yet. |
+| `verification_status` | `unconfirmed` for an item accepted automatically, until a clinician reviews it. Show it as **not reviewed**, never as clinician-confirmed. |
+| `reviewed_at` and `reviewed_by_staff_id` | `null` until a clinician, manager or owner marks the item reviewed. Then both are set, and `verification_status` becomes `confirmed`. |
+
+An item accepted automatically is on the chart, and for an allergy or a reported medicine it takes part in the
+clinic's medicine checks. Only its claim to have been checked is different. In [FHIR](/fhir#automatic-acceptance),
+`verificationStatus` reads `unconfirmed` and an `accepted_by` extension says why.
+
+## What is never automatic
+
+A clinic that switches this on still reviews:
+
+- **Every change** to something already on the chart (`PATCH`), including resolving, stopping or ending an item.
+- **Every retraction.**
+- **Every "no known allergies" statement.**
+- **Anything the clinic's chart would refuse**, such as an allergy the patient already has. A duplicate waits for a clinician, who can decline it.
+
+Because an item accepted automatically is already decided, you can no longer change or withdraw it. The attempt
+answers `409 submission_not_pending`. Send a new item, or ask the clinic.
+
+## When it pauses
+
+If you send an unusually large number of items in a short time, the clinic's automatic acceptance **pauses itself**
+for your key or connection. The limit is the clinic's own and you cannot read it. While it is paused, your items wait for review
+exactly as before, and nothing resumes by itself. A clinic owner or manager must turn it back on. Expect a first bulk load of
+history to pause it, and send backfills expecting them to be reviewed.
+
+## Starts off again
+
+A rolled or replaced key, or a new connection after a revoked one, starts with automatic acceptance **off**. The clinic
+must choose it again.
+
+## Test keys
+
+A test key never reaches a clinic's real chart and is never accepted automatically.
+
+## What to build
+
+- Read `review_status` and `accepted_automatically` in the answer to every send.
+- Tell a person an item is on a record only when `review_status` is `confirmed`.
+- Show items with `accepted_by: "automatic"` and no `reviewed_at` as **not yet reviewed by a clinician**.
+- Treat `reviewed_at` and `reviewed_by_staff_id` as the sign that a clinician has now looked at it.
+- Do not try to detect the setting by sending a test item to a real patient.

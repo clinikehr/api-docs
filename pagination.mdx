@@ -1,0 +1,57 @@
+---
+title: "Pagination"
+description: "How every list endpoint pages through results, and how to read to the end reliably."
+icon: "/images/icons/layer-group.svg"
+---
+
+Every endpoint that returns more than one record uses the same cursor-based pagination — there's no offset, no page number, and no total count to request.
+
+## Request parameters
+
+| Parameter | Default | Max | Notes |
+| --- | --- | --- | --- |
+| `limit` | `25` | `100` | How many records to return in one response. |
+| `starting_after` | — | — | An opaque cursor from a previous response's `next_cursor`. Omit it for the first page. |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/items?limit=100" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+## Response shape
+
+```json
+{
+  "data": [ /* up to `limit` records */ ],
+  "has_more": true,
+  "next_cursor": "cur_01example"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `data` | The records for this page, in the order the endpoint defines. |
+| `has_more` | `true` if there's another page after this one. |
+| `next_cursor` | Pass this as `starting_after` on your next request. `null` when `has_more` is `false`. |
+
+## Reading to the end
+
+```bash
+starting_after=""
+while :; do
+  page=$(curl -s "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/items?limit=100&starting_after=$starting_after" \
+    -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…")
+  # process page's "data" here
+  has_more=$(echo "$page" | jq -r '.has_more')
+  [ "$has_more" = "true" ] || break
+  starting_after=$(echo "$page" | jq -r '.next_cursor')
+done
+```
+
+<Note>
+  A cursor is opaque and signed — don't construct one yourself, don't store one longer than you need to, and don't assume it encodes anything meaningful about the record it points at. Always take it from `next_cursor`, never build it by hand.
+</Note>
+
+## Filtering a list
+
+Most list endpoints also accept an `updated_since` timestamp, so you can ask for only what's changed since your last sync instead of paging through everything every time. See each endpoint's own parameters in [Inventory](/inventory).

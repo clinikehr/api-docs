@@ -1,0 +1,157 @@
+---
+title: "Inventory"
+description: "Read a clinic's stock locations, catalogue items, availability and exact stock levels — the only resource available in this release."
+icon: "/images/icons/boxes-stacked.svg"
+---
+
+Inventory is the only resource this API exposes today. Everything on this page is a **read** — there is no way to create, update, or adjust stock through the API yet.
+
+Each endpoint needs a specific permission on the key making the request — see [Permissions](/permissions) for what each one means before you build against it.
+
+## Locations
+
+```
+GET /v1/clinics/{clinic_id}/inventory/locations
+```
+
+Requires `inventory.items:read`. Returns the clinic's stock locations — the storerooms, shelves or fridges stock is held in.
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/locations" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+## List catalogue items
+
+```
+GET /v1/clinics/{clinic_id}/inventory/items
+```
+
+Requires `inventory.items:read`. Cursor-paginated (see [Pagination](/pagination)).
+
+| Query parameter | Meaning |
+| --- | --- |
+| `limit` | See [Pagination](/pagination). Default 25, max 100. |
+| `starting_after` | See [Pagination](/pagination). |
+| `q` | Free-text match against the item's name. Matches are text matches, not confirmed equivalence — two items with similar names are not necessarily the same product. |
+| `category` | Filter to one catalogue category. |
+| `updated_since` | RFC 3339 timestamp — only items changed since this time. |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/items?category=Antibiotics&limit=50" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+Each item in the response:
+
+```json
+{
+  "id": "item_01example",
+  "name": "Amoxicillin 500mg capsules",
+  "generic_name": "Amoxicillin",
+  "brand_name": null,
+  "strength": "500mg",
+  "dosage_form": "capsule",
+  "category": "Antibiotics",
+  "item_type": "medication",
+  "unit_of_measure": "capsule",
+  "is_active": true,
+  "identifiers": [
+    { "system": "gtin", "value": "6001234567890" }
+  ],
+  "retail_price": { "amount": "1200.00", "currency": "NGN" },
+  "updated_at": "2026-09-20T10:15:00Z"
+}
+```
+
+`identifiers` lists every code recorded for the item — a barcode (`gtin`) or a national drug registration number (`nafdac`) — and appears **only where the clinic's own record has it**. Nothing is inferred or guessed on your behalf: an item with no barcode on file simply has no `gtin` entry.
+
+`retail_price` is `null` when the clinic hasn't set a price for the item — never a fabricated `0`.
+
+## Get one item
+
+```
+GET /v1/clinics/{clinic_id}/inventory/items/{item_id}
+```
+
+Requires `inventory.items:read`. Same fields as one entry of the list above. An `item_id` that doesn't exist, or that belongs to a different clinic, returns `404` with `code: "not_found"` — see [Errors](/errors).
+
+## Check availability
+
+```
+POST /v1/clinics/{clinic_id}/inventory/availability
+```
+
+Requires `inventory.availability:read`. Checks up to **100 items** in one request — by their ID, or by any identifier you already hold (a barcode, for example) — and returns a band for each, never an exact number.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/availability" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "items": [
+          { "item_id": "item_01example" },
+          { "system": "gtin", "value": "6001234567890" }
+        ]
+      }'
+```
+
+```json
+{
+  "data": [
+    { "item_id": "item_01example", "matched": true, "band": "in_stock", "as_of": "2026-09-27T09:02:11Z" },
+    { "item_id": "item_02example", "matched": true, "band": "low", "as_of": "2026-09-27T09:02:11Z" }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `matched` | Whether the identifier you sent resolved to a real item. `false` means it didn't — not that the item is out of stock. |
+| `band` | One of `out`, `low`, or `in_stock`. Computed by the clinic's own thresholds, not something you can influence per request. |
+| `as_of` | When this figure was last known to be true. |
+
+<Warning>
+  **A positive `band` is not a reservation.** Nothing about calling this endpoint holds, claims, or sets anything aside. Between reading `in_stock` and a customer actually being sold the item, stock can change — always show `as_of` to whoever is relying on the answer, and never present availability as a guarantee.
+</Warning>
+
+## Exact stock levels
+
+```
+GET /v1/clinics/{clinic_id}/inventory/stock
+```
+
+Requires `inventory.stock:read` — a separate, more sensitive permission than availability (see [Permissions](/permissions)). Returns exact quantities, by location and lot.
+
+| Query parameter | Meaning |
+| --- | --- |
+| `location_id` | Filter to one stock location. |
+| `item_id` | Filter to one item. |
+| `expiring_before` | RFC 3339 date — only lots expiring before this date. |
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/stock?item_id=item_01example" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "item_id": "item_01example",
+      "location_id": "loc_01example",
+      "lot_id": "lot_01example",
+      "quantity": "42",
+      "as_of": "2026-09-27T09:02:11Z"
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+`quantity` is a decimal **string**, the same convention used for money — see [Pagination](/pagination) for the list envelope this sits inside.
+
+## What's never in an inventory response
+
+No inventory endpoint returns cost price, vendor information, margins, or anything about a specific customer or sale. This release exposes only what a clinic explicitly permits under Availability, Catalogue, or Stock levels — nothing else rides along.

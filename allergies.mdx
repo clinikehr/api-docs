@@ -1,0 +1,228 @@
+---
+title: "Allergies"
+description: "Read a patient's allergies and intolerances, and send one for a clinician to review. An allergy you send never reaches the chart on its own."
+icon: "/images/icons/shield-check.svg"
+---
+
+An **allergy** is a substance a patient reacts to, with how serious the reaction is and what it looks like. Reading
+the list is immediate. **Writing is different.** An allergy you send is held for a clinician to review, and only a
+clinician's decision puts it on the chart. Read [Reviewing outside submissions](/reviewing-outside-submissions) first
+if you have not already, because everything on this page builds on it.
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List a patient's allergies | `GET /v1/clinics/{clinic_id}/allergies?patient_id=…` | `allergies:read` |
+| Read one allergy | `GET /v1/clinics/{clinic_id}/allergies/{allergy_id}` | `allergies:read` |
+| Send a new allergy | `POST /v1/clinics/{clinic_id}/allergies` | `allergies:write` |
+| Ask for a change to one | `PATCH /v1/clinics/{clinic_id}/allergies/{allergy_id}` | `allergies:write` |
+| Follow what happened to something you sent | `GET /v1/clinics/{clinic_id}/submissions/{submission_id}` | `allergies:write` (even to read) |
+
+The patient must be one your key is allowed to see. A patient the clinic has restricted, or an allergy that does not
+exist, returns `404` with `code: "not_found"`. The two are never told apart. See [Errors](/errors).
+
+## What an allergy looks like
+
+```json
+{
+  "id": "5b0c6f0e-1111-4a2b-9c3d-0123456789ab",
+  "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "entry": "structured",
+  "substance": { "text": "Penicillin", "code": { "system": "rxnorm", "code": "7980", "display": "Penicillin G" } },
+  "category": ["medication"],
+  "criticality": "high",
+  "type": "allergy",
+  "clinical_status": "active",
+  "verification_status": "confirmed",
+  "reactions": [{ "manifestation": ["hives", "swelling"], "severity": "severe", "description": null }],
+  "onset_date": "2019-05-01",
+  "note": "Reaction in childhood.",
+  "recorded_by": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+  "source": "clinic",
+  "origin_assistant_name": null,
+  "review_status": "confirmed",
+  "submission_id": null,
+  "decision_reason": null,
+  "created_at": "2026-10-01T09:00:00Z",
+  "updated_at": "2026-10-01T09:00:00Z"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `entry` | `structured` for an allergy recorded in full, or `legacy_text` for a name on the clinic's plain allergy list. See below. |
+| `substance.text` | The substance, up to 200 characters. It cannot be changed afterwards: a different substance is a new allergy. |
+| `substance.code` | `null`, or a `system` and a `code` together. `display` is filled only for `rxnorm`, from our own verified list, never from text you sent. |
+| `category` | Any of `food`, `medication`, `environment`, `biologic`. |
+| `criticality` | `low`, `high` or `unable_to_assess`. `null` when not recorded. |
+| `type` | `allergy` or `intolerance`. |
+| `clinical_status` | `active`, `inactive`, `resolved` or `entered_in_error`. |
+| `verification_status` | `confirmed` for anything on the chart. `unconfirmed` for an allergy you sent that is still waiting. `refuted` when the clinic ruled it out. |
+| `reactions` | Up to 20, each with `manifestation` (a list of words), `severity` (`mild`, `moderate`, `severe` or `null`) and `description`. |
+| `source` | `clinic` if the clinic's staff entered it, `api` if it began as an outside submission a clinician accepted. |
+| `review_status` | `confirmed`, `pending`, `rejected` or `withdrawn`. |
+| `decision_reason` | The clinician's reason, only on a `rejected` item. |
+
+An allergy you sent that is still waiting has `"id": null`: it has no place on the chart yet. Use `submission_id` to
+follow it.
+
+### The plain allergy list: `legacy_text` entries
+
+Many clinics keep allergies as a plain list of names on the patient's record, and that is where staff still type them.
+So that you never see a patient as having no allergies when the chart says penicillin, a list also returns one
+read-only item for each name on that plain list that has no structured allergy of the same name. These have
+`"entry": "legacy_text"`, `"id": null`, the name in `substance.text`, no code, and nothing else recorded. They cannot
+be read singly or changed through the API.
+
+**An empty list does not mean "no known allergies".** It means the clinic has recorded none. To record that a patient has no known
+allergies, send the statement as described below, for a clinician to confirm. Do not tell a person they have
+no allergies because a list came back empty.
+
+The Patients routes **no longer accept** an `allergies` field. Send allergies through the Allergies endpoints: they
+carry the detail, and an allergy you send there is reviewed before it reaches the chart.
+
+### Codes and code systems
+
+`substance.code.system` is one of `rxnorm`, `snomed-ct` or `local`. Send both parts or neither.
+
+- **`rxnorm`** is checked against a verified list of medicines. A code that is not on it is refused with `invalid_request`. Never send an RxNorm code from memory.
+- **`snomed-ct`** must be digits, 6 to 18 of them. It is not looked up.
+- **`local`** is your own code, up to 64 characters, and carries text only in FHIR output.
+
+You can also send just the substance name with no code.
+
+### "No known allergies"
+
+You can send the statement that a patient has no known allergies: use the substance text `No known allergies`
+(`NKA`, `NKDA` and `none` are read the same way) with no code. It is **reviewed like any allergy**: it arrives pending,
+and a clinician confirms it. They see it plainly, as "Reports no known allergies". If the patient already has an active
+allergy on the chart, the clinician cannot confirm it (the confirmation is refused and your submission stays pending
+until it is declined), because the two statements contradict each other. A confirmed "no known allergies" is a
+statement on the chart, not an allergy: it does not appear as a substance in the list.
+
+## List allergies
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/allergies?patient_id=PATIENT_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Meaning |
+| --- | --- |
+| `patient_id` | **Required.** The patient to list for. |
+| `review_status` | `confirmed` (the default), `pending`, or `all`. |
+| `clinical_status` | `active`, `inactive` or `resolved`: only confirmed allergies with that status. |
+| `updated_since` | RFC 3339 timestamp: only items changed since then. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+- **`confirmed`** is the patient's allergy list as it stands: what a clinician or the clinic has put on the chart, plus the plain-list names described above.
+- **`pending`** is the allergies **your own key or organization** sent that are waiting for a decision, plus those declined, each with its `review_status`. You never see another party's submissions.
+- **`all`** is both together.
+
+An item with `review_status` other than `confirmed` is not on the chart. Do not show it to a person as part of their record.
+
+## Send an allergy
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/allergies" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "patient_id": "PATIENT_ID",
+        "substance": { "text": "Peanuts" },
+        "category": ["food"],
+        "criticality": "high",
+        "reactions": [{ "manifestation": ["hives"], "severity": "moderate" }],
+        "client_reference": "intake-2026-10-04-0017"
+      }'
+```
+
+| Field | Notes |
+| --- | --- |
+| `patient_id` | Required. |
+| `substance` | Required. `text`, 1 to 200 characters, and optionally a `code` with `system` and `code`. |
+| `category`, `criticality`, `type` | Optional, with the values above. |
+| `clinical_status` | `active` (the default), `inactive` or `resolved`. |
+| `reactions` | Optional, up to 20. |
+| `onset_date` | Optional date, not in the future. |
+| `note` | Optional, up to 2000 characters. |
+| `client_reference` | Optional. Your own id for the item. Reusing one for a different item returns `409 client_reference_conflict`. |
+| `origin_assistant_name` | Optional. The name of your system. The clinic's reviewer sees it as the sender. |
+
+A field not listed here is refused with `invalid_request`, naming it.
+
+**`Idempotency-Key` is required on `POST`** (optional on `PATCH`). See [Retries and duplicates](/retries-and-idempotency).
+
+### The answer is 202, not 201
+
+```http
+HTTP/1.1 202 Accepted
+Location: /v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID
+```
+
+The body is the submission, showing `"status": "pending"`. A `202` is a receipt. It is **not** an allergy on the chart.
+
+### An allergy the patient already has
+
+A duplicate is **not** refused when you send it. If the patient already has an active allergy to the same substance,
+your allergy is accepted into review like any other and answers `202`. The clinic sees it beside the one on the chart.
+A clinician can decline it, and a duplicate can never be added to the chart: if a clinician tries to accept it, nothing is
+added and it stays waiting until it is declined. A clinic's [automatic acceptance](/automatic-acceptance) never adds a duplicate either.
+
+## After you send one
+
+Read the submission to see what happened:
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+- `pending`: waiting for a clinician.
+- `confirmed`: a clinician accepted it. The allergy is on the chart, recorded under the clinician's name, with `source: "api"`, and the name is added to the clinic's plain allergy list so that medicine checks see it.
+- `rejected`: declined, with the reason. Do not resend it unchanged.
+- `withdrawn`: you took it back while it was pending.
+
+Only the key or organization that sent a submission can read it. Anyone else gets `404`. If the same substance was
+added to the chart while yours waited, or was already there when you sent yours, the clinician's Accept is refused and your submission stays pending until it
+is declined.
+
+A clinic can also choose to accept new allergies without review. Then the answer to your send is already `confirmed`, with `accepted_automatically: true`, and the allergy reads `accepted_by: "automatic"` and `verification_status: "unconfirmed"` until a clinician reviews it; `reviewed_at` and `reviewed_by_staff_id` then fill in. "No known allergies" is never accepted automatically. See [Automatic acceptance](/automatic-acceptance).
+
+## Ask for a change
+
+```bash
+curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/allergies/ALLERGY_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "criticality": "low", "clinical_status": "resolved" }'
+```
+
+Send only the fields that change: any of `clinical_status`, `criticality`, `category`, `type`, `reactions`,
+`onset_date`, `note`. The substance is never changeable. The answer is `202 Accepted` and the change waits for review
+like a new allergy.
+
+Setting `clinical_status` to `entered_in_error` asks the clinic to mark the allergy as **never having been true**.
+It cannot be combined with other changes, and once an allergy is marked so it cannot be changed again. The API never
+deletes an allergy.
+
+When a clinician confirms a change that makes an allergy inactive, resolved or entered in error, the name stays on the
+clinic's plain allergy list until staff edit it there. This is deliberate: a medicine check should over-warn rather than
+miss an allergy.
+
+## FHIR
+
+Send `Accept: application/fhir+json` to read an allergy, or a list as a `Bundle`, as an `AllergyIntolerance`. A
+`legacy_text` entry is rendered with the name as text only and `verificationStatus` `confirmed`. **FHIR is not accepted
+as input for allergies:** create and change with the JSON routes above. A FHIR body is refused with an
+`OperationOutcome`. See [FHIR R4](/fhir).
+
+## A worked example
+
+1. Your intake system reads "peanuts, hives" on a form. It sends `POST …/allergies` with the substance, `category: ["food"]` and an `Idempotency-Key`. The answer is `202`, with a `Location` header.
+2. `GET …/allergies?patient_id=…` does not show it. Nothing is on the chart.
+3. A clinician opens **Outside submissions** at the clinic, reads it and selects **Accept**. You read the submission again and it is `confirmed`.
+4. `GET …/allergies?patient_id=…` now returns the allergy with `source: "api"` and your `origin_assistant_name`. The clinic's detailed allergy list shows a quiet line, **From** and your name, beside it.
+5. Sending the same peanuts again is accepted into review (`202`), where the clinic can see it is already on the chart and decline it.
+
+A test key reaches only your workspace's sandbox, which holds invented patients with invented allergies, so you can try the requests above without touching a real chart.
