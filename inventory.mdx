@@ -1,10 +1,10 @@
 ---
 title: "Inventory"
-description: "Read a clinic's stock locations, catalogue items, availability and exact stock levels — the only resource available in this release."
+description: "Read a clinic's stock locations, catalogue items, availability and exact stock levels, and archive, restore, delete or write off what the clinic no longer uses."
 icon: "/images/icons/boxes-stacked.svg"
 ---
 
-Inventory is the only resource this API exposes today. Everything on this page is a **read** — there is no way to create, update, or adjust stock through the API yet.
+Most of this page is **reading** a clinic's inventory. The last sections cover the ways your key can **retire** things: archiving an item, restoring it, deleting one that was never used, and writing off a lot of stock. Creating items and receiving, adjusting or transferring stock are in the API reference and in [Retries and duplicates](/retries-and-idempotency).
 
 Each endpoint needs a specific permission on the key making the request — see [Permissions](/permissions) for what each one means before you build against it.
 
@@ -35,6 +35,7 @@ Requires `inventory.items:read`. Cursor-paginated (see [Pagination](/pagination)
 | `starting_after` | See [Pagination](/pagination). |
 | `q` | Free-text match against the item's name. Matches are text matches, not confirmed equivalence — two items with similar names are not necessarily the same product. |
 | `category` | Filter to one catalogue category. |
+| `status` | `active` lists only items in use, `archived` lists only archived items, `all` lists both. Default `all`, so the list is the same as it has always been unless you ask. Anything else is refused with `400`. |
 | `updated_since` | RFC 3339 timestamp — only items changed since this time. |
 
 ```bash
@@ -56,6 +57,7 @@ Each item in the response:
   "item_type": "medication",
   "unit_of_measure": "capsule",
   "is_active": true,
+  "archived_at": null,
   "identifiers": [
     { "system": "gtin", "value": "6001234567890" }
   ],
@@ -65,6 +67,8 @@ Each item in the response:
 ```
 
 `identifiers` lists every code recorded for the item — a barcode (`gtin`) or a national drug registration number (`nafdac`) — and appears **only where the clinic's own record has it**. Nothing is inferred or guessed on your behalf: an item with no barcode on file simply has no `gtin` entry.
+
+`is_active` is `false` and `archived_at` holds the time while an item is archived; both go back to normal when it is restored.
 
 `retail_price` is `null` when the clinic hasn't set a price for the item — never a fabricated `0`.
 
@@ -151,6 +155,96 @@ curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/stock?item_i
 ```
 
 `quantity` is a decimal **string**, the same convention used for money — see [Pagination](/pagination) for the list envelope this sits inside.
+
+## Archive an item
+
+```
+POST /v1/clinics/{clinic_id}/inventory/items/{item_id}/archive
+```
+
+Requires `inventory.items:write`. Archiving hides an item from sale and dispensing without erasing anything — it is always reversible, and the item keeps its history. You can send an optional `reason`, which is kept with the item. No `Idempotency-Key` is needed, and archiving an item that is already archived simply succeeds.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/items/ITEM_ID/archive" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "No longer stocked" }'
+```
+
+The response is the item under `data`, now with `is_active: false` and an `archived_at` time.
+
+An item that still has stock on hand is refused with `409` and `code: "item_has_stock"`; the `detail` says how many units are left. Write the stock off (below) or move it first, then archive.
+
+## Restore an item
+
+```
+POST /v1/clinics/{clinic_id}/inventory/items/{item_id}/restore
+```
+
+Requires `inventory.items:write`. Brings an archived item back so it can be sold and dispensed again. Restoring an item that is already active simply succeeds. No body and no `Idempotency-Key`.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/items/ITEM_ID/restore" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+The response is the item under `data`, with `is_active: true` and `archived_at: null`.
+
+## Delete an item that was never used
+
+```
+DELETE /v1/clinics/{clinic_id}/inventory/items/{item_id}
+```
+
+Requires `inventory.items:write`. **Deleting is permanent**, so it is only allowed for an item that has never been used: it has never held stock and is not part of any order, count, recipe or dispense. If you added an item by mistake, this removes it.
+
+```bash
+curl -X DELETE "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/items/ITEM_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{ "id": "item_01example" }
+```
+
+Anything with history is refused with `409` and `code: "item_has_history"` — **archive it instead**, which keeps the history. Sending the same delete a second time returns `404`, because the item is gone.
+
+## Write off a lot of stock
+
+```
+POST /v1/clinics/{clinic_id}/inventory/lots/{lot_id}/write-off
+```
+
+Requires `inventory.stock:write`. Use this when a lot has expired, been damaged or been recalled. It records the lot's remaining quantity as wasted, at every location where it is held, and then archives the lot. The clinic's stock history keeps the movement; nothing is deleted.
+
+The request needs two things:
+
+- a `reason` in the body — say why the stock is being written off;
+- an `Idempotency-Key` header, so a retry after a timeout cannot write the same lot off twice. See [Retries and duplicates](/retries-and-idempotency).
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/lots/LOT_ID/write-off" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "Expired on the shelf" }'
+```
+
+```json
+{
+  "data": {
+    "lot_id": "lot_01example",
+    "item_id": "item_01example",
+    "quantity_written_off": "42",
+    "reason": "Expired on the shelf",
+    "archived_at": "2026-10-05T10:15:00Z"
+  }
+}
+```
+
+`quantity_written_off` is a decimal **string**, like every quantity.
+
+Leaving `reason` out is a `400` that names the field; a blank reason is refused with `code: "reason_required"`. A controlled drug is refused with `403` and `code: "controlled_drug_not_api_movable"` — an API key has no witness to countersign, so the clinic records that loss itself. A lot with part of its stock reserved is refused with `409` and `code: "insufficient_stock"` until the reservation is released.
 
 ## What's never in an inventory response
 

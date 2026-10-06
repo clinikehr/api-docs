@@ -225,6 +225,13 @@ components:
             - "null"
         is_active:
           type: boolean
+          description: False while the item is archived.
+        archived_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: When the item was archived, or null while it is active.
         identifiers:
           type: array
           items:
@@ -3303,6 +3310,48 @@ components:
         reason:
           type: string
           minLength: 1
+    InventoryItemArchiveRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          description: Optional note on why the item was archived.
+    InventoryLotWriteOffRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          description: Why the remaining stock is being written off (expired, damaged, recalled…). Required.
+    InventoryLotWriteOff:
+      type: object
+      description: What a lot write-off did. The lot is archived; the ledger keeps the movement.
+      required:
+        - lot_id
+        - item_id
+        - quantity_written_off
+        - reason
+      properties:
+        lot_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        quantity_written_off:
+          type: string
+          description: Decimal string. The quantity that was on hand across the clinic's locations when the write-off ran.
+        reason:
+          type: string
+        archived_at:
+          type:
+            - string
+            - "null"
+          format: date-time
     InventoryTransferRequest:
       type: object
       required:
@@ -6022,13 +6071,13 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
     BadRequest:
-      description: The request failed validation (unknown query parameter, limit out of range, malformed body).
+      description: The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
     Conflict:
-      description: "The request is well-formed but conflicts with the CURRENT STATE of the record — a double-booked slot (`slot_taken`), a clinician's calendar blocked at that time (`out_of_office`), nobody eligible free (`no_provider_available`), an item that still has stock (`item_has_stock`), a ledger movement that cannot be covered (`insufficient_stock`, `expired_stock_not_transferable`), a note already signed or clinician-touched (`note_not_editable`), an Idempotency-Key already used for a different request or still in flight (`idempotency_key_conflict`, `idempotency_key_reused`), or an external-stock batch rejected as structurally invalid or a suspicious shrink versus the clinic's last accepted batch (`batch_rejected`), or an outside record that conflicts with what was already submitted or decided: the same `client_reference` sent again with different content (`client_reference_conflict`), or a submission a clinician has already decided (`submission_not_pending`), or an insurance write that conflicts with the clinic's setup or the coverage's state: the patient already has a coverage for that payer (`coverage_exists`, the existing coverage's id is in `detail` when the caller can see that patient), a payer the clinic has not enabled in Settings → Insurance (`payer_not_enabled`), or `coverage_active: true` sent through the API (`activation_requires_staff` — only clinic staff activate a coverage), or a change to an outside care provider the clinic added rather than an app (`care_provider_clinic_managed` — only the clinic can change or remove it)."
+      description: "The request is well-formed but conflicts with the CURRENT STATE of the record — a double-booked slot (`slot_taken`), a clinician's calendar blocked at that time (`out_of_office`), nobody eligible free (`no_provider_available`), an item that still has stock (`item_has_stock`), an item that has been used and so cannot be deleted (`item_has_history`), a ledger movement that cannot be covered (`insufficient_stock`, `expired_stock_not_transferable`), a note already signed or clinician-touched (`note_not_editable`), an Idempotency-Key already used for a different request or still in flight (`idempotency_key_conflict`, `idempotency_key_reused`), or an external-stock batch rejected as structurally invalid or a suspicious shrink versus the clinic's last accepted batch (`batch_rejected`), or an outside record that conflicts with what was already submitted or decided: the same `client_reference` sent again with different content (`client_reference_conflict`), or a submission a clinician has already decided (`submission_not_pending`), or an insurance write that conflicts with the clinic's setup or the coverage's state: the patient already has a coverage for that payer (`coverage_exists`, the existing coverage's id is in `detail` when the caller can see that patient), a payer the clinic has not enabled in Settings → Insurance (`payer_not_enabled`), or `coverage_active: true` sent through the API (`activation_requires_staff` — only clinic staff activate a coverage), or a change to an outside care provider the clinic added rather than an app (`care_provider_clinic_managed` — only the clinic can change or remove it)."
       content:
         application/problem+json:
           schema:
@@ -6255,6 +6304,17 @@ paths:
           required: false
           schema:
             type: string
+        - name: status
+          in: query
+          required: false
+          description: Which items to list. `active` hides archived items, `archived` lists only archived items, `all` (the default) returns both, as this list always has.
+          schema:
+            type: string
+            enum:
+              - active
+              - archived
+              - all
+            default: all
         - name: updated_since
           in: query
           required: false
@@ -6481,6 +6541,55 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+    delete:
+      operationId: deleteInventoryItem
+      tags:
+        - Inventory
+      summary: Delete an unused item
+      description: |-
+        **Permission:** `inventory.items:write`
+
+        Permanently delete an item that has never been used. Anything with history is refused — archive it instead.
+
+        Deleting is permanent and only possible for an item that has never been used: no stock, no stock history, and not part of any order, count, recipe or dispense. Anything else is refused with `item_has_history` (409) — archive the item instead; archiving is reversible and keeps the history. No Idempotency-Key is needed: sending the same delete twice returns `404` the second time.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK. The id of the item that was deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "429":
           $ref: "#/components/responses/TooManyRequests"
   /v1/clinics/{clinic_id}/inventory/availability:
@@ -9045,6 +9154,69 @@ paths:
       tags:
         - Inventory
       summary: Archive a catalogue item
+      description: |-
+        **Permission:** `inventory.items:write`
+
+        Archive an item. Reversible — refused (item_has_stock) while any stock remains.
+
+        Hides the item from sale and dispensing without erasing anything; use the restore route to bring it back. An item that still has stock on hand is refused with `item_has_stock` — move or write off the stock first. Archiving an item that is already archived succeeds and changes nothing. An optional `reason` is kept with the item. No Idempotency-Key is needed.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryItemArchiveRequest"
+      responses:
+        "200":
+          description: OK. The archived item.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InventoryItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/inventory/items/{item_id}/restore:
+    post:
+      operationId: restoreInventoryItem
+      tags:
+        - Inventory
+      summary: Restore a catalogue item
+      description: |-
+        **Permission:** `inventory.items:write`
+
+        Restore an archived item so it can be sold and dispensed again.
+
+        Restoring an item that is already active succeeds and changes nothing. No Idempotency-Key is needed.
       security:
         - ApiKey: []
       parameters:
@@ -9062,11 +9234,16 @@ paths:
             format: uuid
       responses:
         "200":
-          description: OK. The archived item, directly — no data wrapper.
+          description: OK. The restored item.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/InventoryItem"
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InventoryItem"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -9077,10 +9254,64 @@ paths:
           $ref: "#/components/responses/Conflict"
         "429":
           $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/inventory/lots/{lot_id}/write-off:
+    post:
+      operationId: writeOffInventoryLot
+      tags:
+        - Inventory
+      summary: Write off a lot
       description: |-
-        **Permission:** `inventory.items:write`
+        **Permission:** `inventory.stock:write`
 
-        Archive an item. Soft only — refused (item_has_stock) while any stock remains. No delete route exists, ever.
+        Write off the remaining stock of one lot, through the ledger. A reason is required.
+
+        Records the lot's remaining quantity as wasted at every location where it is held, then archives the lot. The ledger keeps the movement; the lot and its history are never deleted. Send the `reason` in the body and an `Idempotency-Key` header. A controlled drug is refused with `controlled_drug_not_api_movable` — an API key has no witness identity to offer.
+      security:
+        - ApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: lot_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryLotWriteOffRequest"
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InventoryLotWriteOff"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /v1/clinics/{clinic_id}/inventory/receive:
     post:
       operationId: receiveInventory

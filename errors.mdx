@@ -72,6 +72,8 @@ Every error response is `application/problem+json` — a small, consistent JSON 
 | `out_of_office` | `409` | The clinician's calendar is blocked at that time. See [Appointments](/appointments). |
 | `invalid_status_transition` | `409` | The record cannot move to that status from the one it is in now. |
 | `item_has_stock` | `409` | An item that still has stock cannot be archived. See [Inventory](/inventory). |
+| `item_has_history` | `409` | An item that has been used cannot be deleted. Archive it instead. See [Inventory](/inventory). |
+| `reason_required` | `400` | A lot write-off needs a reason, and the one sent was blank. See [Inventory](/inventory). |
 | `insufficient_stock` | `409` | There is not enough usable stock for this movement. See [Inventory](/inventory). |
 | `expired_stock_not_transferable` | `409` | Only usable stock can be transferred; the expired part must be written off by the clinic instead. See [Inventory](/inventory). |
 | `batch_rejected` | `409` | An external stock batch was rejected and nothing from it was saved. See [Inventory](/inventory). |

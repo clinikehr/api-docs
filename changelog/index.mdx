@@ -10,6 +10,18 @@ What a developer can build against changes here, newest first. Every entry is so
 Tags: **API** (a resource, scope, or endpoint) · **Sandbox** (test keys and synthetic data) · **Portal** (the developer dashboard at [developer.clinikehr.com](https://developer.clinikehr.com)) · **Webhooks** (endpoints, deliveries and the change feed) · **Billing** (workspace plans and usage).
 
 <Update label="October 5, 2026" tags={["API"]} description="v1">
+  ## Archive, restore, delete and write off inventory
+
+  Your integration can now retire inventory as well as read it, with the same key.
+
+  - **Restore an archived item**: `POST …/inventory/items/{item_id}/restore` brings it back for sale and dispensing. Archiving an item now also accepts an optional `reason`, and the response is the item under `data`, as the other writes are. See [Inventory](/inventory).
+  - **Delete an item that was never used**: `DELETE …/inventory/items/{item_id}` removes it for good, but only if it has never held stock or been part of an order, count, recipe or dispense. Anything with history is refused with `item_has_history`, and the answer is to archive it.
+  - **Write off a lot**: `POST …/inventory/lots/{lot_id}/write-off` records the lot's remaining stock as wasted and archives the lot. It needs a `reason` and an `Idempotency-Key`, so a retry cannot write a lot off twice.
+  - **Filter the catalogue by status**: `GET …/inventory/items?status=active|archived|all`. The default is `all`, so existing calls return what they always did. Each item now carries `archived_at`, empty while the item is active.
+  - Two new error codes, `item_has_history` (`409`) and `reason_required` (`400`). See [Errors](/errors).
+</Update>
+
+<Update label="October 5, 2026" tags={["API"]} description="v1">
   ## CRM search returns the full contact, and note templates return their fields
 
   - **CRM contact search** now answers with the full contact, exactly as reading it by id does. Before, `do_not_contact`, `unsubscribed_at`, `consent_at` and other fields came back `null` in a search result. Check them before contacting anyone. See [CRM](/crm).
