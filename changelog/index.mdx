@@ -9,6 +9,17 @@ What a developer can build against changes here, newest first. Every entry is so
 
 Tags: **API** (a resource, scope, or endpoint) · **Sandbox** (test keys and synthetic data) · **Portal** (the developer dashboard at [developer.clinikehr.com](https://developer.clinikehr.com)) · **Webhooks** (endpoints, deliveries and the change feed) · **Billing** (workspace plans and usage).
 
+<Update label="October 7, 2026" tags={["API"]} description="v1">
+  ## Changing an appointment now tells the people it concerns
+
+  Changing a booked appointment through the API used to email the patient only when the time moved, and only the first time. Now the right people hear about each change.
+
+  - **Patient and participants**: changing `start_at`, `clinician_id` or `venue_type` on a live appointment that is still booked and in the future emails them. A new time is a reschedule notice; a new clinician or venue is an "Appointment updated" notice. Each later change sends its own notice, and the patient's reminder moves to the new time.
+  - **Clinicians**: the new clinician is told a visit was added, the previous one that it was removed, and the current one that it moved, in the app and by email, following the clinic's and each clinician's notification settings.
+  - **`email_notifications`** on an appointment covers every email the patient receives about it, not only reminders. With it `false` the patient is not emailed about a change, but the clinicians still are.
+  - Test-key appointments still never send email. Requests and responses are unchanged. See [Appointments](/appointments#who-is-told-about-a-change).
+</Update>
+
 <Update label="October 5, 2026" tags={["API"]} description="v1">
   ## Archive, restore, delete and write off inventory
 

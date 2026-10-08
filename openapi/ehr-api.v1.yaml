@@ -2904,14 +2904,17 @@ components:
           type:
             - boolean
             - "null"
+          description: "Whether the patient is emailed about this appointment: confirmations, changes, cancellations and reminders. false silences all of them. The clinicians involved are still told about a change."
         sms_notifications:
           type:
             - boolean
             - "null"
+          description: Whether the patient is sent text reminders for this appointment.
         voice_notifications:
           type:
             - boolean
             - "null"
+          description: Whether the patient is sent voice reminders for this appointment.
         notes_session_ids:
           type: array
           items:
@@ -3013,7 +3016,7 @@ components:
         notify_patient:
           type: boolean
           default: true
-          description: false sets email_notifications/sms_notifications/voice_notifications false on the row itself — a real, persistent setting, not a one-time suppression.
+          description: false sets email_notifications/sms_notifications/voice_notifications false on the row itself — a real, persistent setting, not a one-time suppression, so the patient is also not emailed about later changes, cancellation or reminders.
         run_automations:
           type: boolean
           default: false
@@ -3061,11 +3064,13 @@ components:
           description: The only status this route may set.
         email_notifications:
           type: boolean
-          description: Absent ≠ null — no notify_patient shorthand on update.
+          description: Absent ≠ null — no notify_patient shorthand on update. Governs every email the patient receives about this appointment (confirmations, changes, cancellations, reminders); false does not stop the clinicians involved being told of a change.
         sms_notifications:
           type: boolean
+          description: Text reminders for this appointment.
         voice_notifications:
           type: boolean
+          description: Voice reminders for this appointment.
         run_automations:
           type: boolean
           default: false
@@ -3078,7 +3083,7 @@ components:
         notify_patient:
           type: boolean
           default: true
-          description: false only ever DOWNGRADES notification columns — never re-enables a row already silenced.
+          description: false only ever DOWNGRADES notification columns — the patient is not emailed about the cancellation, and it never re-enables a row already silenced.
         run_automations:
           type: boolean
           default: false
@@ -9046,6 +9051,8 @@ paths:
         Reschedule or update an appointment. Immutable after create — patient_id, service_id, location_id, every payment field — are refused if sent.
 
         A new `start_at` or `clinician_id` is checked exactly as a new booking is (the slot must be free and the clinician bookable). Other fields are plain edits; an absent field is unchanged. `status` may only move to `confirmed` here; use the cancel route to cancel. A cancelled, completed or no-show appointment cannot be changed. With a test key, rescheduling is not available: cancel the sandbox appointment and book a new one.
+
+        Who is told. For a live (non-test) appointment that is still booked and in the future, changing `start_at`, `clinician_id` or `venue_type` emails the patient and any participants: a new time is a reschedule notice, a new clinician or venue is an "Appointment updated" notice. The clinicians involved are told in the app and by email: the new clinician that a visit was added, the previous clinician that it was removed, or the current clinician that it moved. This follows the clinic's appointment notification setting and each clinician's own email setting. With `email_notifications` false on the appointment the patient is not emailed, but the clinicians still are. Each later change sends its own notice, and the patient's reminder is re-armed for the new time. Test-key appointments never send email.
       security:
         - ApiKey: []
       parameters:

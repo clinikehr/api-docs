@@ -93,7 +93,7 @@ Only `id` and `status` are always present. The fields you will use most:
 | `urgency_level` | `low`, `normal`, `high`, `emergency` or null | |
 | `patient_notes`, `clinic_notes`, `symptoms_description` | string or null | Free text. |
 | `payment_status`, `payment_method`, `payment_amount`, `payment_due_date`, `amount_paid` | various | How the visit is to be paid for. You can set some of these only when booking. |
-| `email_notifications`, `sms_notifications`, `voice_notifications` | boolean or null | Whether the patient is sent reminders by that route. |
+| `email_notifications`, `sms_notifications`, `voice_notifications` | boolean or null | Whether the patient is sent messages about this appointment by that route. `email_notifications` covers every email the patient receives about it (confirmations, changes, cancellations and reminders); the other two cover text and voice reminders. |
 | `cancellation_reason`, `cancelled_at`, `completed_at` | string, date-time | Set by a cancellation or completion. |
 | `confirmation_sent_at`, `reminder_sent_at` and related fields | date-time or string | When the clinic last messaged the patient. Read-only. |
 | `participants`, `is_group_appointment`, `max_participants`, `group_name`, `recurrence_pattern_id`, `series_id`, `series_index`, `class_session_id` | various | Read-only. Group and repeating appointments cannot be created through the API. |
@@ -252,7 +252,7 @@ curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments" 
 | `payment_amount` | number, 0 or more | No | |
 | `payment_method` | string | No | |
 | `payment_status` | `pending` or `paid` | No | Default `pending`. |
-| `notify_patient` | boolean | No | Default `true`. Setting `false` turns this appointment's email, text and voice reminders **off on the appointment itself**, and they stay off. It is a real setting, not a one-time skip. |
+| `notify_patient` | boolean | No | Default `true`. Setting `false` turns this appointment's email, text and voice messages to the patient **off on the appointment itself**, and they stay off. That includes later change and cancellation emails. It is a real setting, not a one-time skip. |
 | `run_automations` | boolean | No | Default `false`. When `false`, the clinic's automations that react to a new appointment do not run for this booking. |
 
 A field that is not listed is refused with `invalid_request`. **Not supported through the API:** a visit that bundles
@@ -331,7 +331,7 @@ curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments/
 | `urgency_level` | `low`, `normal`, `high`, `emergency` | No | |
 | `patient_notes`, `clinic_notes`, `symptoms_description` | string or null | No | `null` clears the note. |
 | `status` | `confirmed` | No | The **only** status this route can set. Use the cancel route to cancel. |
-| `email_notifications`, `sms_notifications`, `voice_notifications` | boolean | No | Turn a reminder route on or off for this appointment. |
+| `email_notifications`, `sms_notifications`, `voice_notifications` | boolean | No | Turn a route on or off for this appointment. `email_notifications` governs every email the patient receives about it, not only reminders. |
 | `run_automations` | boolean | No | Default `false`. |
 
 **You cannot change `patient_id`, `service_id`, `location_id` or any payment field after booking.** Sending one is
@@ -340,6 +340,23 @@ An appointment that is already `cancelled`, `completed` or `no_show` can no long
 With a **test key**, changing `start_at` is not supported in the sandbox: cancel and book again.
 
 The answer is the updated appointment, shaped as in [Read one appointment](#read-one-appointment).
+
+### Who is told about a change
+
+For a live appointment that is still booked and in the future, changing `start_at`, `clinician_id` or `venue_type`
+sends notices:
+
+- **The patient and any participants are emailed.** A new time is a reschedule notice. A new clinician or venue is an
+  "Appointment updated" notice.
+- **The clinicians involved are told in the app and by email.** The new clinician hears that a visit was added, the
+  previous clinician that it was removed, and the current clinician that it moved. This follows the clinic's
+  appointment notification setting and each clinician's own email setting.
+- **`email_notifications: false` on the appointment** stops the patient being emailed, but the clinicians are still told.
+- **Every change sends its own notice**, including a second reschedule of the same appointment.
+- **The patient's reminder is re-armed** for the new time.
+- **Appointments booked with a test key never send email.**
+
+Nothing about the request or the answer changes: there is no field to send and no new error.
 
 ## Cancel an appointment
 
@@ -359,7 +376,7 @@ curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments/3
 | Body field | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `reason` | string | No | Why it was cancelled. Kept on the appointment as `cancellation_reason`. |
-| `notify_patient` | boolean | No | Default `true`. `false` turns the patient's reminders off for this appointment. It never turns back on a reminder that was already switched off. |
+| `notify_patient` | boolean | No | Default `true`. `false` turns the patient's messages off for this appointment, so the cancellation is not emailed to them. It never turns back on a reminder that was already switched off. |
 | `run_automations` | boolean | No | Default `false`. |
 
 ```json
