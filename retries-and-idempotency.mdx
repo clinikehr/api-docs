@@ -46,8 +46,11 @@ Store the highest `seq` you've successfully processed. It's your one source of t
 already", independent of whether the delivery itself arrived once, twice, or out of order under retry.
 
 ```json
-{ "id": "evt_...", "type": "inventory.availability.changed", "seq": 42, "data": { "id": "item_...", "band": "low" } }
+{ "type": "inventory.availability.changed", "clinic_id": "11111111-2222-4333-8444-555555555555", "seq": 42, "data": { "id": "item_...", "band": "low" }, "created_at": "2026-10-01T10:00:00.000Z" }
 ```
+
+The event's own id is not in the body: it arrives in the `webhook-id` header, and a retry or replay of the same event
+carries the same id (with a fresh timestamp and signature).
 
 ## The change feed — catching up after downtime
 

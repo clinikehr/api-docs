@@ -77,6 +77,12 @@ curl https://api.clinikehr.com/v1/connections \
 
 See [Connections](/connections) for the full response shape — for a clinic-owned key, that list always has exactly one entry: the clinic itself, with `connected_at`/`expires_at` both `null`.
 
+## How long a key lasts
+
+A live key has an end date, chosen when you create it, and it can be at most 12 months away. A test key may have no end date. We email the workspace's owners and admins (or the clinic's owners and managers, for a clinic-owned key) 30 days and 7 days before a live key stops working. After the end date the key answers `401` with `code: "invalid_key"`, exactly like a revoked one.
+
+To rotate a key without an outage: create the new key, deploy it to the system that calls the API, confirm calls succeed, then revoke the old key. Keys created before this limit existed keep working until you revoke them; replace them with a key that has an end date.
+
 ## Authentication failures
 
 | Situation | Response |

@@ -9,6 +9,108 @@ What a developer can build against changes here, newest first. Every entry is so
 
 Tags: **API** (a resource, scope, or endpoint) · **Sandbox** (test keys and synthetic data) · **Portal** (the developer dashboard at [developer.clinikehr.com](https://developer.clinikehr.com)) · **Webhooks** (endpoints, deliveries and the change feed) · **Billing** (workspace plans and usage).
 
+<Update label="October 12, 2026" tags={["API"]} description="Python client 0.1.0">
+  ## The Python client is on PyPI
+
+  `pip install clinikehr` gives you a typed client for every route in this reference: your key sent for you, a reused `Idempotency-Key` on retries, sensible retry delays, paged lists walked for you, typed errors and webhook signature checks. It needs Python 3.11 or later.
+
+  - Published from its public source at [github.com/clinikehr/sdk-python](https://github.com/clinikehr/sdk-python) by GitHub Actions, with a signed attestation for each file on PyPI.
+  - Use the synchronous calls in `0.1.0`; the `asyncio` variants are not usable yet. In an async program, run a call in a worker thread.
+  - Install only `clinikehr` from [PyPI](https://pypi.org/project/clinikehr/), and nothing of that name from anyone else.
+
+  Start with the [Python client guide](/python-sdk), or see [SDKs and Postman](/sdks-and-postman).
+</Update>
+
+<Update label="October 11, 2026" tags={["Portal","Billing"]} description="Subscriptions">
+  ## Billing & subscriptions in the developer portal
+
+  The developer portal has a **Billing & subscriptions** page in its navigation, with the workspace plan's status, price
+  and next charge and **Cancel** or **Resume** (workspace owners and admins). Cancelling keeps live keys working until the
+  end of the period you paid for. The same plan also appears in a clinic owner's **Billing → Other subscriptions** when
+  that person is the workspace's owner or admin.
+
+</Update>
+
+<Update label="October 11, 2026" tags={["Portal"]} description="Keys">
+  ## Live keys end on a date you choose
+
+  A new live key needs an end date, at most 12 months away, in the developer portal and in a clinic's API access settings.
+  Create the replacement before the date, switch your system over, then revoke the old key. We email the workspace's
+  owners and admins 30 days and 7 days before a live key stops working. Test keys can still have no end date, and keys you
+  already have keep working until you revoke them. See [Authentication](/authentication#how-long-a-key-lasts).
+
+</Update>
+
+<Update label="October 10, 2026" tags={["API"]} description="TypeScript client 0.1.3">
+  ## The TypeScript client updates records too
+
+  Version 0.1.3 sends an `Idempotency-Key` on every `PATCH`, the way it already did on every `POST`. Earlier versions
+  sent none, so a `PATCH` route that requires one, such as updating an appointment, was refused whatever you passed.
+  A `DELETE` now carries your `idempotencyKey` when you give one. Update with `npm install @clinikehr/api@0.1.3`.
+  See [Writing safely](/typescript-sdk#writing-safely-idempotency-is-automatic).
+</Update>
+
+<Update label="October 10, 2026" tags={["API","Sandbox","Webhooks"]} description="Fixes">
+  ## Six fixes found by running the whole API end to end
+
+  - **The [change feed](/events) works.** `GET /v1/clinics/{clinic_id}/events` answered `404 not_found` for every key. It now returns the feed, filtered to the event types your key's scopes cover.
+  - **Appointments can be updated with a test key.** Every `PATCH` on a sandbox appointment was refused as a reschedule, even a change to the notes or the status. Status, notes, urgency and venue changes now work, and so does a new time (sandbox times are in UTC; an overlap with the same clinician is refused with `slot_taken`). See [Appointments](/appointments).
+  - **Creating or updating a note returns the whole note.** The answer used to show `content: null` and `citations: null`; it now carries the content and citations, the same as reading the note. See [Notes](/notes).
+  - **A citation link must be a web address.** A citation `url` that does not start with `http://` or `https://` is refused with `invalid_request`, naming `/citations/N/url`.
+  - **CRM contact values are checked.** A `record_type`, `lifecycle_stage`, `priority` or `source` outside the documented values is refused with `invalid_request` and a field-level `errors` list, instead of being stored (test keys) or answered with a server error (live keys). See [CRM](/crm).
+  - **Rate-limit headers tell the truth.** `RateLimit-Reset` was always `60`; it now gives the seconds until your allowance is full again. A `429` now carries `RateLimit-Limit`, `RateLimit-Remaining: 0` and `RateLimit-Reset` as well as `Retry-After`, as [Rate limits](/rate-limits) always said. That page now explains how the limit refills.
+</Update>
+
+<Update label="October 10, 2026" tags={["API"]} description="TypeScript client 0.1.2">
+  ## The TypeScript client is on npm
+
+  `npm install @clinikehr/api` gives you a typed client for every route in this reference: your key kept on the server, a reused `Idempotency-Key` on retries, sensible retry delays, paged lists walked for you, typed errors and webhook signature checks.
+
+  - Install `0.1.2` or later. Versions 0.1.0 and 0.1.1 are deprecated: they sent every request to the wrong address and could not complete a call.
+  - Built from its public source at [github.com/clinikehr/sdk-typescript](https://github.com/clinikehr/sdk-typescript), with a signed provenance statement.
+  - The Python client follows.
+
+  Start with the [TypeScript client guide](/typescript-sdk).
+</Update>
+
+<Update label="October 9, 2026" tags={["API"]} description="Data protection addendum 2026-10-09">
+  ## A new version of the data protection addendum
+
+  Version 2026-10-09 of the [data protection addendum for organizations](/data-protection-addendum) adds two sections. You do not need to accept it again: acceptances of 2026-10-03 stay valid, and an organization accepting now accepts 2026-10-09.
+
+  - **3A — if a clinic links you to an insurer** (clinics on the insurance setup for outside the US): you receive only that insurer's enrollees, plans, claims and authorization requests at that clinic, only to administer its cover; your decisions and payment advices move no money; the clinic can end the link at any time.
+  - **3B — information we do not provide**: medication information a clinic holds only through its electronic prescribing connection is never provided to an organization, and a clinic cannot waive this.
+</Update>
+
+<Update label="October 9, 2026" tags={["API"]} description="v1">
+  ## Prescriptions held only in the clinic's e-prescribing service go to the clinic's own keys
+
+  The e-prescribing network's rules do not allow its information to be passed on to outside organizations, even with the clinic's permission. So a prescription that exists only in a clinic's e-prescribing service, and was not written in ClinikEHR, is now returned only to keys the clinic created for its own systems.
+
+  - An organization's key no longer receives these prescriptions from `GET …/prescriptions`, and `GET …/prescriptions/{prescription_id}` answers `404` for them.
+  - Prescriptions written in ClinikEHR are unchanged, including ones that were sent electronically.
+
+  See [Medications](/medications).
+</Update>
+
+<Update label="October 9, 2026" tags={["API", "Webhooks"]} description="v1">
+  ## Insurance for HMOs and insurers
+
+  An HMO or insurer can now work with the clinics it serves through the API, and developers can build billing tools for those clinics. It is for clinics that use the non-US insurance setup.
+
+  - **Clinics decide who is an insurer.** A clinic owner or manager links a connected organization to one of the clinic's insurer records under **Settings → API access → Insurer links**. An insurer sees only its own enrollees, plans, claims and authorization requests; anything else answers `404`.
+  - **Verify and read**: `GET …/insurance/enrollees` (verify by `insurance_no`), `…/insurance/plans`, `…/insurance/claims` and `…/insurance/pre-authorizations`, with their lines, diagnoses and document details.
+  - **Vet a claim**: `POST …/insurance/claims/{claim_id}/adjudication` approves, adjusts or declines each line with a reason. It can never approve more than was billed, never moves money, and stops once the clinic has recorded a payment.
+  - **Decide an authorization request**: `POST …/insurance/pre-authorizations/{pa_id}/decision` approves it with a `pa_code` or denies it with a reason.
+  - **Tell the clinic what you paid**: `POST …/insurance/payment-advices`. It is an advice for clinic staff to reconcile and changes nothing in the clinic's books.
+  - **Submit** a claim (`POST …/insurance/claims`) or an authorization request (`POST …/insurance/pre-authorizations`) as a developer, for a patient the clinic has linked to you.
+  - **Events**: `insurance.claim.submitted`, `insurance.claim.adjudicated`, `insurance.claim.paid`, `insurance.pa.requested` and `insurance.pa.decided`, delivered to an insurer only for its own records.
+  - **New permissions and errors**: nine `insurance.*` permissions, a new patient-data kind (**Insurer claims, authorizations and enrollees**), and the codes `hmo_not_linked` and `insurance_region_unsupported`.
+  - **Fixed**: the change feed (`GET …/events`) could not return a page; it now does.
+
+  Start with [Insurance for HMOs and insurers](/insurance-hmos).
+</Update>
+
 <Update label="October 7, 2026" tags={["API"]} description="v1">
   ## Changing an appointment now tells the people it concerns
 
@@ -135,6 +237,8 @@ Tags: **API** (a resource, scope, or endpoint) · **Sandbox** (test keys and syn
 
 <Update label="October 5, 2026" tags={["API"]} description="v1">
   ## Insurance: list a clinic's payers, read and add a patient's coverage
+
+  For clinics on the US insurance setup. Clinics outside the US use [Insurance for HMOs and insurers](/insurance-hmos).
 
   Connect an intake or eligibility system to a patient's insurance. A coverage you add stays inactive until the clinic's staff confirm it. See [Insurance](/insurance).
 

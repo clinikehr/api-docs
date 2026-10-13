@@ -15,13 +15,16 @@ icon: "/images/icons/file-signature.svg"
 Every webhook is signed, so you can confirm it came from ClinikEHR and was not altered or replayed by someone
 else, before you act on it.
 
+If you use an official client, it does this check for you: `verifyWebhook` in the [TypeScript client](/typescript-sdk#verifying-a-webhook)
+and `verify_webhook` in the [Python client](/python-sdk#verifying-a-webhook). The rest of this page is for checking it yourself.
+
 ## The headers
 
 Each delivery carries three headers:
 
 | Header | Meaning |
 | --- | --- |
-| `webhook-id` | A unique id for this delivery attempt. |
+| `webhook-id` | The id of the event. It is the same on every retry and replay of that event, so use it to recognise a delivery you have already handled. |
 | `webhook-timestamp` | When the delivery was sent, as Unix seconds. |
 | `webhook-signature` | One or more space-separated signatures, each `v1,<base64 value>`. |
 

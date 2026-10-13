@@ -43,6 +43,12 @@ Every key is created with a specific set of scopes — chosen by the clinic when
 | --- | --- | --- |
 | `payers:read` | Read-only | The insurance payers the clinic has enabled, with the `id` needed to attach a coverage to one. It holds no patient information, so it is not a patient-data scope. See [Insurance](/insurance#payers). |
 
+## Insurance plans
+
+| Scope | Read/write | Gives you |
+| --- | --- | --- |
+| `insurance.plans:read` | Read-only | The plans and benefits of the insurer the clinic linked to your organization: limits, co-payments, covered care and waiting periods. It holds no patient information, so it is not a patient-data scope. See [Insurance for HMOs and insurers](/insurance-hmos). |
+
 ## Providers
 
 | Scope | Read/write | Gives you |
@@ -64,6 +70,7 @@ An organization is approved by **kind of data**; each kind covers these scopes:
 | Referrals | `referrals:read`, `referrals:write` |
 | Conditions | `conditions:read`, `conditions:write` |
 | Insurance coverage | `coverage:read`, `coverage:write` |
+| Insurer claims, authorizations and enrollees | `insurance.enrollees:read`, `insurance.claims:read`, `insurance.claims:adjudicate`, `insurance.claims:submit`, `insurance.pa:read`, `insurance.pa:decide`, `insurance.pa:submit`, `insurance.remittances:write` |
 | Outside care team | `care_providers:read`, `care_providers:write` |
 | Visits | `encounters:read`, `encounters:write` |
 | Drug requests | `requests:read`, `requests:write` |
@@ -79,6 +86,10 @@ An organization is approved by **kind of data**; each kind covers these scopes:
 | `referrals:read` / `referrals:write` | Read / write | The referrals a clinic has received for a patient; write **sends a referral for the clinic to review**, and changes or takes back one you sent only while the clinic has not acted on it. No key can accept, decline, book, complete or cancel a referral: those are the clinic's decisions — see [Referrals](/referrals). |
 | `conditions:read` / `conditions:write` | Read / write | A patient's problem list and diagnoses; write **sends a condition for clinician review**. It never changes the chart on its own — see [Conditions](/conditions). |
 | `coverage:read` / `coverage:write` | Read / write | A patient's insurance coverage: payer, member and group identifiers, dates, network status. Write adds or updates one, but a coverage you add is **inactive until staff confirm it** — see [Insurance](/insurance). |
+| `insurance.enrollees:read` | Read-only | The enrollees of the insurer the clinic linked to your organization, to verify one before service. |
+| `insurance.claims:read` / `insurance.claims:adjudicate` / `insurance.claims:submit` | Read / vet / submit | That insurer's claims with their lines; vet a claim (approve, adjust or decline each line, never moving money); submit a claim (developers and clinic keys only). |
+| `insurance.pa:read` / `insurance.pa:decide` / `insurance.pa:submit` | Read / decide / send | Authorization requests the clinic sent to that insurer; approve or deny one; send one (developers and clinic keys only). |
+| `insurance.remittances:write` | Write | Tell the clinic what the insurer paid, as a payment advice for staff to reconcile. It never changes the clinic's books. |
 | `care_providers:read` / `care_providers:write` | Read / write | The outside doctors, referrers and specialists a patient names; write adds one, and changes or removes **only the contacts your app added**. The clinic's own and other apps' contacts are read-only to you — see [Outside care providers](/care-providers). |
 | `encounters:read` / `encounters:write` | Read / write | A patient's visits as the clinic documents them: status, dates, reason for the visit and clinician, never clinical text or billing. Write **opens a draft visit** for a clinician to complete, and changes the details of a draft your app opened until a person touches it. It never orders, bills, signs, locks or finalises — see [Encounters](/encounters). |
 | `requests:read` / `requests:write` | Read / write | Drug requests sent to a clinic — see [Drug requests](/drug-requests). |

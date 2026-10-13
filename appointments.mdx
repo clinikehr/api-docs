@@ -337,7 +337,7 @@ curl -X PATCH "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/appointments/
 **You cannot change `patient_id`, `service_id`, `location_id` or any payment field after booking.** Sending one is
 refused with `invalid_request`, as is any other field not listed. To book a different patient or service, cancel and book again.
 An appointment that is already `cancelled`, `completed` or `no_show` can no longer be changed.
-With a **test key**, changing `start_at` is not supported in the sandbox: cancel and book again.
+With a **test key**, every change above works on the sandbox's invented appointments, including a new `start_at` or `clinician_id`. A sandbox time is in UTC, and a time that overlaps that clinician's other sandbox appointments is refused with `slot_taken`.
 
 The answer is the updated appointment, shaped as in [Read one appointment](#read-one-appointment).
 

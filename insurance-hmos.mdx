@@ -1,0 +1,249 @@
+---
+title: "Insurance for HMOs and insurers"
+description: "Verify enrollees, vet claims, decide authorizations and report payments for the insurers a clinic links to you, or submit claims as a developer."
+icon: "/images/icons/shield-check.svg"
+---
+
+import { Availability } from '/snippets/availability.mdx';
+import { InsuranceRegion } from '/snippets/insurance-region.mdx';
+
+This is the API for **HMOs and insurers** that work with clinics outside the United States, and for **developers**
+who build billing tools for those clinics. It sits on top of the clinic's HMO billing in ClinikEHR: the claims the
+clinic submits, the pre-authorization requests it sends, the enrollees and plans the insurer has agreed with it.
+
+The shapes follow the names Curacel's Health API uses (`insurance_no`, `pa_code`, `hmo_status`, `qty_approved`,
+`sub_total_billed`), so an insurer that already speaks Curacel maps across with little work. It is ClinikEHR's own
+API, with its own routes, errors and rules.
+
+<Availability keyKind={['organization', 'clinic']} plan="Enterprise, with the API add-on or an approved organization" note="A clinic that uses the US insurance setup is refused with insurance_region_unsupported." />
+
+<InsuranceRegion region="non_us" />
+
+## Two ways to use it, and who decides
+
+A clinic decides what each connected organization is. Nothing is assumed from the name on the key.
+
+| You are | The clinic has | You can |
+| --- | --- | --- |
+| **An insurer or HMO** | Connected your organization, approved the insurance permissions, and **linked your organization to your insurer record** | Read **your** enrollees, plans, claims and authorization requests. Vet claims. Approve or deny authorization requests. Tell the clinic what you paid. |
+| **A developer** | Connected your organization, approved the insurance permissions, and linked you to **no** insurer | Submit claims and authorization requests for patients the clinic has linked to you. You cannot read an insurer's data or act as one. |
+| **The clinic itself** (a clinic-owned key) | Nothing to link | Read all of its own insurance data, and submit. A clinic cannot vet, decide or advise payment on its own claims. |
+
+An insurer sees only its own rows. A claim, enrollee, plan, authorization request or payment advice that belongs to a
+different insurer is not hidden behind a permission error: it answers `404`, the same as one that does not exist. An
+insurer also never sees what the clinic has not sent yet: a claim still being prepared, or an authorization request
+not yet sent for approval.
+
+The clinic owner or manager links an organization to an insurer under **Settings → API access → Insurer links**. A
+link can be ended at any time, and your access to that insurer's data stops with it.
+
+## What you need
+
+- A **live key** that belongs to your organization, with the insurance permissions below. See [Permissions](/permissions).
+- An approval for the **Insurer claims, authorizations and enrollees** kind of patient data on your organization, and the data-protection addendum accepted. See [Getting access to patient data](/patient-data-access).
+- A connection to the clinic that grants those permissions. See [Connections](/connections).
+- The clinic's link from your organization to your insurer record, if you are an insurer.
+
+## The endpoints
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List your enrollees, or verify one by number | `GET /v1/clinics/{clinic_id}/insurance/enrollees` | `insurance.enrollees:read` |
+| Read one enrollee | `GET …/insurance/enrollees/{enrollee_id}` | `insurance.enrollees:read` |
+| List your plans | `GET …/insurance/plans` | `insurance.plans:read` |
+| Read one plan with its benefits | `GET …/insurance/plans/{plan_id}` | `insurance.plans:read` |
+| List claims | `GET …/insurance/claims` | `insurance.claims:read` |
+| Read one claim with its lines | `GET …/insurance/claims/{claim_id}` | `insurance.claims:read` |
+| Vet a claim | `POST …/insurance/claims/{claim_id}/adjudication` | `insurance.claims:adjudicate` |
+| Submit a claim | `POST …/insurance/claims` | `insurance.claims:submit` |
+| List authorization requests | `GET …/insurance/pre-authorizations` | `insurance.pa:read` |
+| Read one authorization request | `GET …/insurance/pre-authorizations/{pa_id}` | `insurance.pa:read` |
+| Approve or deny a request | `POST …/insurance/pre-authorizations/{pa_id}/decision` | `insurance.pa:decide` |
+| Send an authorization request | `POST …/insurance/pre-authorizations` | `insurance.pa:submit` |
+| Tell the clinic what you paid | `POST …/insurance/payment-advices` | `insurance.remittances:write` |
+| List the payment advices | `GET …/insurance/payment-advices` | `insurance.remittances:write` |
+
+Lists use the cursor paging described on [Pagination](/pagination). Every write needs an `Idempotency-Key`, so a retry
+returns the first answer instead of doing the work twice. See [Retries and duplicates](/retries-and-idempotency).
+
+## Verify an enrollee
+
+Send the number the patient presented. It matches the enrollee's number and their alternate number.
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/insurance/enrollees?insurance_no=ABC-001234" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "0a1b2c3d-4444-4e5f-8a6b-23456789abcd",
+      "insurance_company_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+      "insurance_no": "ABC-001234",
+      "firstname": "Ada",
+      "lastname": "Okafor",
+      "status": "AA",
+      "valid_until": "2027-06-30",
+      "plan": { "id": "7e1f0c2a-5555-4a6b-9c7d-3456789abcde", "name": "Gold", "code": "GLD" }
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+`status` uses Curacel's codes: `AA` active, `IA` inactive, `SX` suspended, `XX` cancelled, `PP` pending, `WP` in a
+waiting period. An enrollee the clinic holds under a different insurer is not found.
+
+## Read claims
+
+`GET …/insurance/claims` lists the claims the clinic has submitted to you. Filter by `status`, `hmo_status`,
+`enrollee_id` and `updated_since`. A list row has no lines; read the claim to get them.
+
+A claim has two statuses. `status` is the clinic-side lifecycle (`submitted`, `approved`, `partially_approved`,
+`denied`, `partially_paid`, `paid`, and so on). `hmo_status` is your verdict (`PENDING`, `APPROVED`,
+`PARTIALLY_APPROVED`, `REJECTED`). `paid_amount` and `written_off_amount` are what the **clinic** has recorded: no API
+call changes them.
+
+Each line carries what was billed (`qty_billed`, `unit_price_billed`, `sub_total_billed`) and, once vetted, what was
+approved (`qty_approved`, `unit_price_approved`, `sub_total_approved`, `hmo_item_status`). Attached documents come with
+their name, type and size only; the files themselves are not served by this API.
+
+## Vet a claim
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/insurance/claims/CLAIM_ID/adjudication" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 6b9f6c1e-1d7e-4f55-9a52-0c4c3b1c8a11" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "decision": "approved",
+    "items": [
+      { "item_id": "LINE_ID_1", "status": "adjusted", "qty_approved": 1, "comment": "One unit covered" },
+      { "item_id": "LINE_ID_2", "status": "declined", "reason": "Not covered by the plan" }
+    ]
+  }'
+```
+
+`decision` is required and sets what **every** line gets: `approved` at the billed figures, or `rejected` at zero.
+`items` then overrides individual lines, so "approve everything except this line" is one `declined` entry. A rejection
+needs a `reason`; so does a declined line, unless the body has a `reason` of its own.
+
+The claim's status follows its lines:
+
+| Result of the lines | `status` | `hmo_status` |
+| --- | --- | --- |
+| Every line approved exactly as billed | `approved` | `APPROVED` |
+| Every line declined | `denied` | `REJECTED` |
+| Anything else | `partially_approved` | `PARTIALLY_APPROVED` |
+
+The rules the clinic's books depend on:
+
+- **You cannot approve more than was billed**, for a quantity or a price.
+- **Vetting never moves money.** There is no field for a paid or written-off amount, and sending one is refused as an unknown field.
+- **Once the clinic has recorded a payment or a write-off against a claim, it can no longer be vetted.** It answers `409` with `code: "invalid_status_transition"`.
+- Until then you can vet again, for example after the clinic sends more information.
+
+The response is the claim with its lines. Send `pa_code` to tie the claim to an authorization you issued.
+
+## Authorization requests
+
+`GET …/insurance/pre-authorizations` lists the requests the clinic has **sent** to you. Read one for its lines,
+diagnoses and the clinical reason given for each line.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/insurance/pre-authorizations/PA_ID/decision" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 0c6a4a56-6d0b-4a7d-8b53-6f2f0c9d1e22" \
+  -H "Content-Type: application/json" \
+  -d '{ "decision": "approved", "pa_code": "AUTH-20261009-001", "approved_amount": 400 }'
+```
+
+An approval needs `pa_code`; a denial needs a `reason`. `approved_amount` defaults to the estimated cost and cannot
+exceed it. Lines you do not list follow the decision. A request is decided once: a second decision answers `409`
+with `code: "invalid_status_transition"`.
+
+## Tell the clinic what you paid
+
+A **payment advice** says "we paid this much, by this method, against these claims". It is a message to the clinic.
+It does **not** change a claim, the clinic's payments or its books. Clinic staff record the money themselves, and only
+then does a claim move to `partially_paid` or `paid`.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/insurance/payment-advices" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 4f1c7e0a-0b0a-4e6a-9d14-1e9b2b7f3c33" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "insurance_company_id": "YOUR_INSURER_ID",
+    "paid_on": "2026-10-09",
+    "amount": 300,
+    "method": "bank_transfer",
+    "reference": "TRF-77821",
+    "allocations": [ { "claim_id": "CLAIM_ID", "amount": 300 } ]
+  }'
+```
+
+Each allocation names a claim of yours that is waiting for payment, for no more than it still owes, and the
+allocations cannot add up to more than `amount`. If you send a `currency` it must be the clinic's currency.
+
+## Submit a claim or an authorization request
+
+For a developer, or the clinic's own key. A claim is saved as `submitted` with no money on it and answers `201` with
+the claim. `patient_id` must be a patient the clinic has linked to your organization. An organization that is linked
+to an insurer cannot submit: it answers `403` with `code: "role_required"`.
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/insurance/claims" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "patient_id": "PATIENT_ID",
+    "insurance_company_id": "INSURER_ID",
+    "service_date_from": "2026-10-08T09:00:00Z",
+    "diagnoses": [ { "icd_code": "J06.9", "is_primary": true } ],
+    "items": [
+      { "description": "Consultation", "item_type": "consultation", "quantity": 1, "unit_price": 5000 },
+      { "description": "Amoxicillin 500mg", "item_type": "medication", "quantity": 21, "unit_price": 120 }
+    ]
+  }'
+```
+
+Authorization requests work the same way: `POST …/insurance/pre-authorizations` with `request_type`, the lines (with
+`unit_cost`) and, optionally, the diagnosis and the clinical reason for each line. The request is saved as
+`sent_for_authorization`.
+
+## Events
+
+Subscribe a webhook endpoint, or read the [change feed](/events). An insurer receives these events **only for its own
+insurer records**, and only while its connection grants the matching permission. Each carries ids, a number, a status
+and amounts, never a patient's name or identifier.
+
+| `type` | When | Needs the permission |
+| --- | --- | --- |
+| `insurance.claim.submitted` | A claim reached `submitted` | `insurance.claims:read` |
+| `insurance.claim.adjudicated` | A claim was vetted: approved, partly approved or denied | `insurance.claims:read` |
+| `insurance.claim.paid` | The clinic recorded a payment or write-off against a claim | `insurance.claims:read` |
+| `insurance.pa.requested` | An authorization request was sent to the insurer | `insurance.pa:read` |
+| `insurance.pa.decided` | An authorization request was approved or denied | `insurance.pa:read` |
+
+## Test keys
+
+A test key reaches only its own sandbox clinic, which holds no insurance data. Lists answer an empty page and reads
+answer `404`. Writes also answer `404`. Use a live key against a clinic that has linked your organization to try the
+routes.
+
+## Errors you will meet
+
+| `code` | Status | Meaning |
+| --- | --- | --- |
+| `hmo_not_linked` | `403` | The clinic has not linked your organization to an insurer, or the action belongs to an insurer and you are a developer or the clinic. |
+| `insurance_region_unsupported` | `409` | The clinic uses the US insurance setup. These routes serve clinics on the non-US setup. |
+| `role_required` | `403` | You are linked to an insurer, so you cannot submit claims or authorization requests. |
+| `invalid_status_transition` | `409` | The claim or request is not in a state this action can change, for example money is already recorded or it was already decided. |
+| `not_found` | `404` | The record does not exist, belongs to another insurer, has not been sent to you, or belongs to a patient the clinic restricts. These are never told apart. |
+
+See [Errors](/errors) for the codes shared by every route.

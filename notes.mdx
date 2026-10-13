@@ -175,7 +175,7 @@ marked as coming from your app, and the clinician reviews and completes it.
 | `note_type` | string | No | The exact name of one of the clinic's standard templates, taken from the templates list. Omit for a blank note. |
 | `custom_template_id` | uuid | No | The id of one of the clinic's own templates. Use this **or** `note_type`, not both. |
 | `origin_assistant_name` | string | No | The name of your system, when the draft is written by an assistant. The note is then marked as coming from an outside assistant, with this name. |
-| `citations` | array of objects | No | Sources behind an assistant's draft. Stored beside the note, not inside its text. |
+| `citations` | array of objects | No | Sources behind an assistant's draft. Stored beside the note, not inside its text. Each must be an object; a `url`, when given, must start with `http://` or `https://`. Anything else is refused with `invalid_request`, naming the citation (for example `/citations/0/url`). |
 
 A field not on this list is refused with `invalid_request`. In particular there is no field for a status, a signature or a
 lock.
@@ -218,13 +218,13 @@ curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/notes" \
     "created_at": "2026-10-05T09:00:00Z",
     "updated_at": "2026-10-05T09:00:00Z",
     "custom_template_id": null,
-    "content": null,
+    "content": { "text": "Example patient reports a mild cough for three days." },
     "citations": null
   }
 }
 ```
 
-The answer to a create or an update shows the note's details with `content: null`. **Read the note** to see its content.
+The answer to a create or an update is the whole note, the same object you get by reading it: its details, `content` and `citations`.
 
 `Idempotency-Key` is optional on this route but strongly recommended: a retry with the same key and the same body returns
 the original result instead of a second draft. See [Retries and duplicates](/retries-and-idempotency).

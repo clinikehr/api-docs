@@ -213,6 +213,12 @@ vendor's own detail is never returned. The e-prescribing service describes a pre
 words, so we translate it: cancelled or voided becomes `cancelled`, filled or picked up becomes `dispensed`, sent or
 pending becomes `pending`, and anything we do not recognise becomes `unknown`. Treat `unknown` as "we cannot tell".
 
+**Prescriptions that exist only in the e-prescribing service go to the clinic's own keys only.** If a prescription
+was not written in ClinikEHR but is held in the clinic's e-prescribing service, a key the clinic created for its own
+systems receives it, and an organization's key never does — not in the list, and `GET` on its id answers `404`. The
+e-prescribing network's rules do not allow that information to be passed on to outside organizations. A prescription
+written in ClinikEHR is returned as usual, whichever way it was sent.
+
 ```bash
 curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/prescriptions?patient_id=PATIENT_ID&status=dispensed" \
   -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"

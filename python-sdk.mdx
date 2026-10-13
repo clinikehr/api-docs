@@ -1,0 +1,313 @@
+---
+title: "Python client"
+description: "Install clinikehr, make your first call, write records safely, page through lists, handle errors and retries, and verify webhooks — from Python."
+icon: "/images/icons/code.svg"
+---
+
+`clinikehr` is the official Python client for the ClinikEHR API. It is a thin layer over the same HTTPS endpoints
+this reference documents, and it takes care of the parts that are easy to get wrong: sending your key, retrying
+safely, never creating a record twice, walking paged lists, typed errors and checking webhook signatures.
+
+| | |
+| --- | --- |
+| Package | [`clinikehr`](https://pypi.org/project/clinikehr/) on PyPI |
+| Source | [github.com/clinikehr/sdk-python](https://github.com/clinikehr/sdk-python) |
+| Runs on | Python 3.11 or later; it depends on [`httpx`](https://www.python-httpx.org/) and [`attrs`](https://www.attrs.org/) |
+| Base URL | `https://api.clinikehr.com/v1` |
+
+## Install
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install clinikehr
+```
+
+The package contains a typed function for every route in this reference, and a typed model for every request and
+response body. Each version is published from the public source by GitHub Actions using PyPI trusted publishing, so
+PyPI shows a signed attestation for each file on that file's page.
+
+## Your first call
+
+In the [developer portal](https://developer.clinikehr.com), switch to **Test** mode, open **Keys** and select
+**Create key**. A test key reaches only your workspace's sandbox — invented clinics, patients and stock — so you can try
+everything safely. Put it in your server's environment, never in source code:
+
+```bash
+export CLINIKEHR_API_KEY="ehr_test_…"
+```
+
+```python
+import os
+
+import clinikehr
+from clinikehr._generated.api.me import get_me
+
+client = clinikehr.create_client(os.environ["CLINIKEHR_API_KEY"])
+
+me = clinikehr.raise_for_response(get_me.sync_detailed(client=client))
+print(me.environment.value, me.scopes)
+```
+
+`GET /v1/me` tells you which key you are using, its environment and its permissions. With a test key, `me.clinic_id`
+is your sandbox clinic — use it in the calls below.
+
+## Calling a route
+
+Every route is a module under `clinikehr._generated.api.<group>`, named after the route's `operationId` in snake
+case: `listInventoryItems` is `clinikehr._generated.api.inventory.list_inventory_items`, and your editor lists the
+others as you type. Call its `sync_detailed` function with the `client`, the
+path and query parameters as keyword arguments, and a request model as `body` for a write. It returns a response, and
+`clinikehr.raise_for_response` hands you the parsed body or raises the API's error.
+
+```python
+from clinikehr._generated.api.inventory import list_inventory_items
+from clinikehr._generated.models import ListInventoryItemsStatus
+
+clinic_id = str(me.clinic_id)
+
+page = clinikehr.raise_for_response(
+    list_inventory_items.sync_detailed(
+        clinic_id=clinic_id,
+        client=client,
+        limit=25,
+        status=ListInventoryItemsStatus.ACTIVE,
+    )
+)
+
+for item in page.data:
+    print(item.id, item.name)
+print(page.has_more, page.next_cursor)
+```
+
+<Note>
+  The response comes back as a typed object, so your editor completes `page.data` and `item.name`. Parameters that
+  accept a fixed set of values, such as `status`, take the enum from `clinikehr._generated.models`; passing a plain string
+  raises an error before any request is sent. A parameter named `from`, which Python reserves, is spelled `from_`.
+</Note>
+
+A route your key's permissions do not cover answers `403` with the code `scope_missing`. See
+[Permissions](/permissions).
+
+## Writing safely: idempotency is automatic
+
+Every write function takes an `idempotency_key`. Pass a fresh `uuid4` for each new record. The client sends it as the
+`Idempotency-Key` header and sends the **same** key again if it retries that request, so a timeout after the server has
+already saved your record can never create a second one — the retry returns the first answer. See
+[Retries and duplicates](/retries-and-idempotency).
+
+```python
+import uuid
+
+from clinikehr._generated.api.inventory import create_inventory_item
+from clinikehr._generated.models import InventoryItemCreateRequest
+
+created = clinikehr.raise_for_response(
+    create_inventory_item.sync_detailed(
+        clinic_id=clinic_id,
+        client=client,
+        body=InventoryItemCreateRequest(name="Paracetamol 500 mg", item_type="medication"),
+        idempotency_key=str(uuid.uuid4()),
+    )
+)
+print(created.data.id)
+```
+
+If your own job may repeat a logical operation (for example, a queue that redelivers a message), derive the key from
+something stable instead, such as `idempotency_key=f"stock-item:{message.id}"`, so both attempts are recognised as one.
+
+When you call the underlying `httpx` client yourself (see [FHIR R4](#fhir-r4)), the client still adds an
+`Idempotency-Key` to any `POST` or `PATCH` that has none, because some `PATCH` routes, such as updating an appointment,
+require one. A `DELETE` carries a key only when you set one.
+
+## Retries
+
+The client retries a request that failed for a temporary reason, up to **4 attempts** in total:
+
+| Retried | Not retried |
+| --- | --- |
+| Rate limits (`429`) on any request, waiting as long as the `Retry-After` header says | Any `4xx` other than `429` — fix the request instead |
+| Network failures and server errors (`5xx`) on `GET` | `PATCH` after a network failure or `5xx` — never retried for you, though it carries a key |
+| The same on `POST`, because it always carries an idempotency key, and on a `DELETE` you passed a key for | A `DELETE` you did not pass a key for |
+
+Waits grow exponentially from 500 ms up to 8 s, with random jitter, and a `Retry-After` header from the API always
+wins. Change the policy, and set a timeout, when you create the client:
+
+```python
+from clinikehr import RetryPolicyOptions
+
+client = clinikehr.create_client(
+    os.environ["CLINIKEHR_API_KEY"],
+    timeout=10.0,
+    retry_options=RetryPolicyOptions(max_attempts=6, base_delay_ms=250, max_delay_ms=15_000),
+)
+```
+
+See [Rate limits](/rate-limits) for the limits themselves.
+
+## Errors
+
+`raise_for_response` raises `ClinikEHRApiError` for any refused request, carrying the API's [error](/errors) fields:
+
+```python
+import httpx
+
+from clinikehr import ClinikEHRApiError
+from clinikehr._generated.api.patients import list_patients
+
+try:
+    clinikehr.raise_for_response(list_patients.sync_detailed(clinic_id=clinic_id, client=client))
+except ClinikEHRApiError as err:
+    print(err.status, err.code, err.request_id)  # e.g. 403 scope_missing req_…
+    for field in err.errors:
+        print(field["pointer"], field["message"])
+    if err.is_retryable:
+        print("try again in", err.retry_after_seconds, "s")
+except httpx.HTTPError as err:
+    print("network failure after retries:", err)
+```
+
+| Attribute | What it is |
+| --- | --- |
+| `status` | The HTTP status |
+| `code` | The stable machine code, such as `invalid_key`, `scope_missing`, `rate_limited` — see [Errors](/errors) |
+| `request_id` | Quote it to support; it finds your request in our logs |
+| `title`, `detail` | The problem's short title and its explanation |
+| `errors` | Field-level problems, each with a `pointer` and a `message` |
+| `raw` | The whole problem body, including any extra fields the code documents |
+| `is_retryable` | `True` for `429` and `5xx` |
+| `retry_after_seconds` | From the `Retry-After` header, when sent |
+
+A network failure — DNS, a refused connection, a timeout — is not a `ClinikEHRApiError`: no answer came back. It
+surfaces as the `httpx` exception (`httpx.ConnectError`, `httpx.TimeoutException`, and so on, all subclasses of
+`httpx.HTTPError`) once the retries are used up; the request may or may not have reached us. For a `POST`, retrying with
+the same `idempotency_key` is safe.
+
+## Paging through a list
+
+List routes return one page at a time with `has_more` and `next_cursor`. `paginate` walks every page for you; you give
+it a function that fetches the page for a cursor:
+
+```python
+from clinikehr import CursorPage, paginate
+
+def fetch_page(cursor):
+    resp = clinikehr.raise_for_response(
+        list_inventory_items.sync_detailed(
+            clinic_id=clinic_id,
+            client=client,
+            limit=100,
+            **({"starting_after": cursor} if cursor else {}),
+        )
+    )
+    return CursorPage(data=resp.data, has_more=resp.has_more, next_cursor=resp.next_cursor)
+
+for item in paginate(fetch_page):
+    print(item.name)
+```
+
+It asks for the next page only when you have used up the current one, and stops when `has_more` is `false`. See
+[Pagination](/pagination).
+
+## Using it from async code
+
+In version 0.1.0 use the synchronous `sync_detailed` calls. The `asyncio_detailed` variants of the generated functions
+are not usable yet: they fail before sending anything. In an async program, run the synchronous call in a worker thread
+so it does not block your event loop:
+
+```python
+import asyncio
+
+async def main():
+    me = clinikehr.raise_for_response(await asyncio.to_thread(get_me.sync_detailed, client=client))
+    print(me.environment.value)
+
+asyncio.run(main())
+```
+
+## FHIR R4
+
+To receive FHIR resources instead of JSON, turn FHIR on for the client. Every request then sends
+`Accept: application/fhir+json`:
+
+```python
+fhir_client = clinikehr.create_client(os.environ["CLINIKEHR_API_KEY"], fhir=True)
+http = fhir_client.get_httpx_client()
+
+resp = http.get(f"/v1/clinics/{clinic_id}/patients/{patient_id}")
+resp.raise_for_status()
+patient = resp.json()
+print(patient["resourceType"])  # Patient
+```
+
+Read a FHIR answer from the `httpx` response as above. The typed functions and models describe the JSON shape, so
+calling one of them on a FHIR client fails when it tries to read a FHIR resource. The client's retry and
+idempotency behaviour apply to this `httpx` client too. See [FHIR R4](/fhir) for which routes answer in FHIR and how.
+
+## Verifying a webhook
+
+`verify_webhook` checks the signature on an event we deliver to your endpoint. Pass the **raw** request body as text —
+not a re-serialised object — and your endpoint's signing secret. It returns nothing when the delivery is genuine and
+raises `WebhookVerificationError` when it is not:
+
+```python
+import os
+
+from clinikehr import WebhookVerificationError, verify_webhook
+
+def handle_webhook(headers, raw_body: str):
+    try:
+        verify_webhook(headers, raw_body, secrets=[os.environ["CLINIKEHR_WEBHOOK_SECRET"]])
+    except WebhookVerificationError:
+        return 400, "invalid signature"
+    # Deliveries can repeat: deduplicate on the webhook-id header.
+    return 204, ""
+```
+
+`headers` is any mapping that holds the `webhook-id`, `webhook-timestamp` and `webhook-signature` headers, such as
+your framework's request headers. In Flask, call `handle_webhook(request.headers, request.get_data(as_text=True))`; in
+FastAPI, `(await request.body()).decode()`.
+
+While you rotate a signing secret, pass both — `secrets=[current, previous]` — and either one is accepted. An event
+older than 5 minutes is refused (`tolerance_seconds` changes that). See
+[Verifying a webhook's signature](/verifying-webhook-signatures) and [Events](/events).
+
+## Typed requests and responses
+
+Request and response bodies are `attrs` models in `clinikehr._generated.models`. Build a request from keyword
+arguments as above, or from a dictionary with `Model.from_dict(...)`; turn any model back into plain data with
+`.to_dict()`:
+
+```python
+body = InventoryItemCreateRequest(name="Paracetamol 500 mg", item_type="medication")
+print(body.to_dict())  # {'name': 'Paracetamol 500 mg', 'item_type': 'medication'}
+```
+
+The client is also a context manager, which closes its connections when the block ends:
+
+```python
+with clinikehr.create_client(os.environ["CLINIKEHR_API_KEY"]) as client:
+    me = clinikehr.raise_for_response(get_me.sync_detailed(client=client))
+```
+
+## Keep your key on the server
+
+Unlike the [TypeScript client](/typescript-sdk), the Python client cannot tell where it runs, so the discipline is
+yours: read the key from your server's environment or a secret store, and never ship a live key in code that runs on an
+end user's device. A live key reaches real patient information. Call the API from your server and give your front end
+only what it needs.
+
+## From test to live
+
+1. Build and test against your sandbox with a **test** key.
+2. To reach a real clinic, the clinic connects your organization and grants the permissions you need — see
+   [Connections](/connections). Anything about a patient also needs
+   [patient-data access](/patient-data-access).
+3. Create a **live** key and swap it in. Nothing else in your code changes.
+
+## Versions
+
+The client follows [semantic versioning](https://semver.org). While it is `0.x`, a minor version may change its
+interface; pin a version range you have tested (`pip install "clinikehr>=0.1,<0.2"`). Releases are listed in the
+[changelog](/changelog) and on [PyPI](https://pypi.org/project/clinikehr/). Found a problem? Open an issue
+on [GitHub](https://github.com/clinikehr/sdk-python/issues).

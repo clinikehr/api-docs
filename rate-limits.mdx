@@ -20,27 +20,38 @@ Rate limits apply **per key**, not per clinic, per workspace, or per IP address.
   A clinic-owned key on the Team tier has **no monthly request cap** — only the 60-per-minute limit above. If you've seen a "100,000 requests a month" figure mentioned anywhere for a clinic's own key, that was never enforced and doesn't reflect a real limit; ask us if you're unsure which limit actually applies to your integration.
 </Note>
 
+## How the limit works
+
+The per-minute limit is a **bucket** that holds a minute's worth of requests and refills continuously. A key limited to
+60 per minute can send 60 requests at once. After that it gets one more request back every second (the limit divided by
+60), so a steady 60 a minute never meets the limit, and a burst is refused only for as long as the bucket takes to refill.
+
+Some routes that do heavy work, such as starting an import, also have a tighter limit of their own. A clinic connected to
+several organizations has a limit per connection. A refusal from one of those names it with `limit_kind` (for example
+`"route"`).
+
 ## Reading the headers
 
-Every response — successful or not — carries headers telling you where you stand against the **per-minute** limit:
+Every response, including a refusal, carries headers telling you where you stand:
 
 ```
 RateLimit-Limit: 60
 RateLimit-Remaining: 47
-RateLimit-Reset: 22
+RateLimit-Reset: 13
 ```
 
 | Header | Meaning |
 | --- | --- |
-| `RateLimit-Limit` | The ceiling for the current window. |
-| `RateLimit-Remaining` | How many requests you have left in the current window. |
-| `RateLimit-Reset` | Seconds until the window resets. |
+| `RateLimit-Limit` | The size of your bucket: how many requests you can send in one burst, and per minute. Left out on a refusal from a route's or a connection's own limit, which is a different bucket. |
+| `RateLimit-Remaining` | How many requests you can send right now. |
+| `RateLimit-Reset` | Seconds until the bucket is full again. `0` means you have the whole allowance. |
 
-Watch `RateLimit-Remaining` and back off before it hits zero, rather than waiting to be told.
+Watch `RateLimit-Remaining` and slow down before it reaches zero, rather than waiting to be told.
 
 ## When you go over the per-minute limit
 
-You get a `429` with `code: "rate_limited"` and a `Retry-After` header telling you how many seconds to wait:
+You get a `429` with `code: "rate_limited"`. `Retry-After` gives the seconds until your next request will be accepted,
+and `RateLimit-Remaining` is `0`:
 
 ```json
 {
@@ -53,8 +64,13 @@ You get a `429` with `code: "rate_limited"` and a `Retry-After` header telling y
 ```
 
 ```
-Retry-After: 22
+Retry-After: 1
+RateLimit-Limit: 60
+RateLimit-Remaining: 0
+RateLimit-Reset: 60
 ```
+
+The [TypeScript client](/typescript-sdk#retries) does this for you: it waits for `Retry-After` and retries a `429` on any method.
 
 Respect `Retry-After` exactly rather than retrying on a fixed interval — retrying too eagerly against a `429` just extends the wait for everyone using that key.
 

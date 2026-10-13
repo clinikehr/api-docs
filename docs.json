@@ -63,7 +63,9 @@
             "pages": [
               "index",
               "quickstart",
-              "sdks-and-postman"
+              "sdks-and-postman",
+              "typescript-sdk",
+              "python-sdk"
             ]
           },
           {
@@ -92,6 +94,7 @@
               "providers",
               "care-providers",
               "insurance",
+              "insurance-hmos",
               "inventory",
               "dispensing",
               "pharmacy-listings",
@@ -290,6 +293,25 @@
               "POST /v1/clinics/{clinic_id}/coverages",
               "GET /v1/clinics/{clinic_id}/coverages/{coverage_id}",
               "PATCH /v1/clinics/{clinic_id}/coverages/{coverage_id}"
+            ]
+          },
+          {
+            "group": "HMO insurance",
+            "pages": [
+              "GET /v1/clinics/{clinic_id}/insurance/enrollees",
+              "GET /v1/clinics/{clinic_id}/insurance/enrollees/{enrollee_id}",
+              "GET /v1/clinics/{clinic_id}/insurance/plans",
+              "GET /v1/clinics/{clinic_id}/insurance/plans/{plan_id}",
+              "GET /v1/clinics/{clinic_id}/insurance/claims",
+              "POST /v1/clinics/{clinic_id}/insurance/claims",
+              "GET /v1/clinics/{clinic_id}/insurance/claims/{claim_id}",
+              "POST /v1/clinics/{clinic_id}/insurance/claims/{claim_id}/adjudication",
+              "GET /v1/clinics/{clinic_id}/insurance/pre-authorizations",
+              "POST /v1/clinics/{clinic_id}/insurance/pre-authorizations",
+              "GET /v1/clinics/{clinic_id}/insurance/pre-authorizations/{pa_id}",
+              "POST /v1/clinics/{clinic_id}/insurance/pre-authorizations/{pa_id}/decision",
+              "GET /v1/clinics/{clinic_id}/insurance/payment-advices",
+              "POST /v1/clinics/{clinic_id}/insurance/payment-advices"
             ]
           },
           {

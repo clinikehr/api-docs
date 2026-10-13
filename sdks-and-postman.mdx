@@ -4,21 +4,71 @@ description: "Client libraries and a ready-made request collection for the Clini
 icon: "/images/icons/code.svg"
 ---
 
-Everything the API does is plain HTTPS with a bearer key, so you never need a library. We are also
-preparing three conveniences, so you do not have to write the same plumbing yourself.
+Everything the API does is plain HTTPS with a bearer key, so you never need a library. Client libraries take
+care of the plumbing you would otherwise write yourself.
 
 | What | For | Status |
 | --- | --- | --- |
-| **TypeScript client** (`@clinikehr/api`) | Node.js and server-side TypeScript | **Coming soon.** Not published yet. |
-| **Python client** (`clinikehr`) | Python 3 services and scripts | **Coming soon.** Not published yet. |
+| **TypeScript client** (`@clinikehr/api`) | Node.js and server-side TypeScript | **Available now.** [npm](https://www.npmjs.com/package/@clinikehr/api) · [Source](https://github.com/clinikehr/sdk-typescript) |
+| **Python client** (`clinikehr`) | Python 3.11+ services and scripts | **Available now.** [PyPI](https://pypi.org/project/clinikehr/) · [Source](https://github.com/clinikehr/sdk-python) |
 | **Postman collection** | Trying a request by hand | **Available now.** [Download it](/downloads/clinikehr-ehr-api.postman_collection.json). |
 
+## Install the TypeScript client
+
+```bash
+npm install @clinikehr/api
+```
+
+```ts
+import { createClient } from "@clinikehr/api";
+
+const client = createClient({ apiKey: process.env.CLINIKEHR_API_KEY! });
+const me = await client.GET("/v1/me");
+```
+
+It calls `https://api.clinikehr.com/v1` by default. Start with a **test** key from the
+[developer portal](https://developer.clinikehr.com) — it reaches only your sandbox. Call the API from your server:
+the client refuses to run in a web browser, whatever the key.
+
+**[Read the full TypeScript client guide →](/typescript-sdk)** — calls, idempotent writes, retries, errors, paging,
+FHIR and webhooks.
+
+Each published version is built from its public source by GitHub Actions and carries a signed provenance
+statement, so you can confirm what you installed with `npm audit signatures`.
+
+## Install the Python client
+
+```bash
+pip install clinikehr
+```
+
+```python
+import os
+
+import clinikehr
+from clinikehr._generated.api.me import get_me
+
+client = clinikehr.create_client(os.environ["CLINIKEHR_API_KEY"])
+me = clinikehr.raise_for_response(get_me.sync_detailed(client=client))
+```
+
+It also calls `https://api.clinikehr.com/v1` by default, and needs Python 3.11 or later. Use a **test** key from the
+[developer portal](https://developer.clinikehr.com) to begin, and keep your key on your server: unlike the TypeScript
+client, the Python client has no way to tell that it has been put in front of a browser.
+
+**[Read the full Python client guide →](/python-sdk)** — calls, idempotent writes, retries, errors, paging, FHIR and
+webhooks.
+
+Each published version is published from its public source by GitHub Actions using PyPI trusted publishing, and PyPI
+shows a signed attestation for each file on that file's page.
+
 <Warning>
-  The two client libraries are **not published**. Do not look for them on npm or PyPI yet, and do not
-  install a package of the same name from anyone else. This page changes when they are released.
+  Install only the package named `clinikehr` from [PyPI](https://pypi.org/project/clinikehr/), and only
+  `@clinikehr/api` from npm. Do not install a package with a similar name, or either of these names from anyone
+  else's account or mirror: they are ours alone.
 </Warning>
 
-## What the libraries will do
+## What the libraries do
 
 Both are thin. They call the same endpoints this documentation describes, and add the parts that are
 easy to get wrong:

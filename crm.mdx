@@ -208,7 +208,7 @@ automations and does not enrol the person in any marketing journey, even if the 
 | `lifecycle_stage` | `lead`, `inquiry`, `prospect`, `waitlist`, `customer`, `lost` | No | Default `lead`. |
 | `pipeline_id` | uuid or null | No | Default: the clinic's default pipeline. |
 | `stage_id` | uuid or null | No | Default: the first stage of the pipeline. |
-| `source` | string | No | Default `manual`. Say where the contact came from, for example `your-app`. |
+| `source` | `booking_page`, `website`, `contact_form`, `referral`, `manual`, `import`, `walk_in`, `phone`, `social` | No | Default `manual`. Where the contact came from. |
 | `owner_staff_id` | uuid or null | No | The staff member who owns it. |
 | `referral_source_id`, `desired_service_id`, `desired_provider_id` | uuid or null | No | Links to the clinic's own referral source, service and provider. |
 | `interest` | string or null | No | What they asked about. |
@@ -346,6 +346,8 @@ field that can be empty).
 | --- | --- | --- | --- |
 | `clinic_id` | path, uuid | Yes | The clinic. |
 | `contact_id` | path, uuid | Yes | The contact. |
+
+A value outside the lists above for `record_type`, `lifecycle_stage`, `priority` or `source` is refused with `invalid_request`, and the `errors` list names each field (for example `/lifecycle_stage`). This holds on create and on update, with a test key and a live key alike.
 
 The body can carry any of: `record_type`, `first_name`, `last_name`, `email`, `phone`, `company`, `lifecycle_stage`,
 `pipeline_id`, `stage_id`, `source`, `owner_staff_id`, `referral_source_id`, `interest`, `desired_service_id`,

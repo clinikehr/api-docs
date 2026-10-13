@@ -1854,6 +1854,16 @@ components:
           format: uuid
         source:
           type: string
+          enum:
+            - booking_page
+            - website
+            - contact_form
+            - referral
+            - manual
+            - import
+            - walk_in
+            - phone
+            - social
         referral_source_id:
           type:
             - string
@@ -1947,6 +1957,16 @@ components:
           format: uuid
         source:
           type: string
+          enum:
+            - booking_page
+            - website
+            - contact_form
+            - referral
+            - manual
+            - import
+            - walk_in
+            - phone
+            - social
         owner_staff_id:
           type:
             - string
@@ -4641,7 +4661,7 @@ components:
           description: The medicine's name as the clinic lists it. Never a brand, batch, price or manufacturer.
     Prescription:
       type: object
-      description: "A prescription, read only and deliberately minimal: the drug, the dose, the frequency, the status and when it was written. Nothing about dispensing, payment, scheduling, the prescriber or notes ever leaves the clinic. There is no way to create or change a prescription through the API. `source` is `eprescribe` for a prescription sent through the clinic's e-prescribing connection and `clinic` otherwise. `status: unknown` appears only on an `eprescribe` prescription whose status the e-prescribing service reports in a form the platform does not recognise."
+      description: "A prescription, read only and deliberately minimal: the drug, the dose, the frequency, the status and when it was written. Nothing about dispensing, payment, scheduling, the prescriber or notes ever leaves the clinic. There is no way to create or change a prescription through the API. `source` is `eprescribe` for a prescription sent through the clinic's e-prescribing connection and `clinic` otherwise. `status: unknown` appears only on an `eprescribe` prescription whose status the e-prescribing service reports in a form the platform does not recognise. A prescription that exists only in the clinic's e-prescribing service (it was not written in the clinic) is returned to the clinic's own keys only; an organization's key never receives it, under the e-prescribing network's rules."
       required:
         - id
         - patient_id
@@ -6033,6 +6053,1150 @@ components:
             - unknown
         is_primary:
           type: boolean
+    InsuranceEnrollee:
+      type: object
+      description: A person an insurer covers at this clinic, as the clinic holds them. `insurance_no` is the number an enrollee is verified by. Only enrollees of an insurer the clinic linked to your organization are returned. Verification metadata and the clinic's internal notes are never exposed.
+      required:
+        - id
+        - insurance_company_id
+        - insurance_no
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        insurance_company_id:
+          type: string
+          format: uuid
+        patient_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+          description: The clinic's own patient id; null for a floating enrollee not yet matched to a patient.
+        insurance_no:
+          type: string
+        alternate_insurance_no:
+          type:
+            - string
+            - "null"
+        firstname:
+          type:
+            - string
+            - "null"
+        middlename:
+          type:
+            - string
+            - "null"
+        lastname:
+          type:
+            - string
+            - "null"
+        sex:
+          type:
+            - string
+            - "null"
+        birthdate:
+          type:
+            - string
+            - "null"
+          format: date
+        status:
+          type: string
+          enum:
+            - AA
+            - IA
+            - SX
+            - XX
+            - PP
+            - WP
+          description: "Curacel enrollee status codes: AA active, IA inactive, SX suspended, XX cancelled, PP pending, WP waiting period."
+        status_effective_from:
+          type:
+            - string
+            - "null"
+          format: date
+        valid_until:
+          type:
+            - string
+            - "null"
+          format: date
+        plan:
+          oneOf:
+            - $ref: "#/components/schemas/InsuranceEnrolleePlan"
+            - type: "null"
+        parent_enrollee_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        parent_relationship:
+          type:
+            - string
+            - "null"
+        staff_number:
+          type:
+            - string
+            - "null"
+        primary_provider_code:
+          type:
+            - string
+            - "null"
+        is_floating:
+          type:
+            - boolean
+            - "null"
+        verified_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        updated_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+    InsuranceEnrolleePlan:
+      type: object
+      required:
+        - id
+        - name
+        - code
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type:
+            - string
+            - "null"
+        code:
+          type:
+            - string
+            - "null"
+    InsurancePlanBenefit:
+      type: object
+      description: One benefit line of a plan - what is covered, at what percentage, with what limit.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type:
+            - string
+            - "null"
+        coverage_type:
+          type:
+            - string
+            - "null"
+        claim_category:
+          type:
+            - string
+            - "null"
+        covered:
+          type:
+            - boolean
+            - "null"
+        coverage_percentage:
+          type:
+            - number
+            - "null"
+        co_payment_value:
+          type:
+            - number
+            - "null"
+        limit_type:
+          type:
+            - string
+            - "null"
+        limit_value:
+          type:
+            - number
+            - "null"
+        max_amount:
+          type:
+            - number
+            - "null"
+        waiting_period:
+          type:
+            - number
+            - "null"
+        enrollee_type:
+          type:
+            - string
+            - "null"
+        gender:
+          type:
+            - string
+            - "null"
+        active:
+          type:
+            - boolean
+            - "null"
+    InsurancePlan:
+      type: object
+      description: A plan of an insurer the clinic linked to your organization. The list omits `benefits`; the single-plan read carries them (up to 500).
+      required:
+        - id
+        - insurance_company_id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        insurance_company_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type:
+            - string
+            - "null"
+        id_from_hmo:
+          type:
+            - string
+            - "null"
+          description: The insurer's own identifier for the plan.
+        plan_type:
+          type:
+            - string
+            - "null"
+        coverage_type:
+          type:
+            - string
+            - "null"
+        description:
+          type:
+            - string
+            - "null"
+        amount_limit:
+          type:
+            - number
+            - "null"
+        co_payment_value:
+          type:
+            - number
+            - "null"
+        cover_dependants:
+          type:
+            - boolean
+            - "null"
+        dependant_limit:
+          type:
+            - number
+            - "null"
+        pre_authorization_required:
+          type:
+            - boolean
+            - "null"
+        network_type:
+          type:
+            - string
+            - "null"
+        waiting_period_days:
+          type:
+            - number
+            - "null"
+        active:
+          type:
+            - boolean
+            - "null"
+        updated_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        benefits:
+          type: array
+          description: Present on the single-plan read only.
+          items:
+            $ref: "#/components/schemas/InsurancePlanBenefit"
+    InsuranceDiagnosis:
+      type: object
+      required:
+        - icd_code
+      properties:
+        icd_code:
+          type: string
+        name:
+          type:
+            - string
+            - "null"
+        is_primary:
+          type:
+            - boolean
+            - "null"
+    InsuranceClaimItem:
+      type: object
+      description: A line of a claim. `*_billed` is what the clinic billed; `*_approved` is what the insurer approved (null until vetted). `hmo_item_status` is `PENDING`, `APPROVED`, `ADJUSTED` or `DECLINED`.
+      properties:
+        id:
+          type: string
+          format: uuid
+        item_type:
+          type:
+            - string
+            - "null"
+        description:
+          type:
+            - string
+            - "null"
+        tariff_code:
+          type:
+            - string
+            - "null"
+        service_date:
+          type:
+            - string
+            - "null"
+          format: date-time
+        qty_billed:
+          type:
+            - number
+            - "null"
+        unit_price_billed:
+          type:
+            - number
+            - "null"
+        sub_total_billed:
+          type:
+            - number
+            - "null"
+        qty_approved:
+          type:
+            - number
+            - "null"
+        unit_price_approved:
+          type:
+            - number
+            - "null"
+        sub_total_approved:
+          type:
+            - number
+            - "null"
+        hmo_item_status:
+          type:
+            - string
+            - "null"
+          enum:
+            - PENDING
+            - APPROVED
+            - ADJUSTED
+            - DECLINED
+            - null
+        denial_reason:
+          type:
+            - string
+            - "null"
+        comments:
+          type: array
+          items:
+            type: string
+        benefit_label:
+          type:
+            - string
+            - "null"
+    InsuranceClaimDocument:
+      type: object
+      description: Metadata of a document attached to a claim. The file itself is not served by this API.
+      properties:
+        id:
+          type: string
+          format: uuid
+        document_type:
+          type:
+            - string
+            - "null"
+        file_name:
+          type:
+            - string
+            - "null"
+        mime_type:
+          type:
+            - string
+            - "null"
+        file_size:
+          type:
+            - number
+            - "null"
+        document_date:
+          type:
+            - string
+            - "null"
+          format: date-time
+        description:
+          type:
+            - string
+            - "null"
+    InsuranceClaim:
+      type: object
+      description: A claim the clinic submitted to an insurer. `status` is the clinic-side lifecycle (`submitted`, `approved`, `partially_approved`, `denied`, `partially_paid`, `paid`, ...); `hmo_status` is the insurer's verdict (`PENDING`, `APPROVED`, `PARTIALLY_APPROVED`, `REJECTED`). `paid_amount` and `written_off_amount` are what the CLINIC has recorded - no API call changes them. `items`, `diagnoses` and `documents` are on the single-claim read only. The clinic's notes and internal analysis are never exposed.
+      required:
+        - id
+        - claim_number
+        - insurance_company_id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        claim_number:
+          type: string
+        insurance_company_id:
+          type: string
+          format: uuid
+        insurance_plan_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        enrollee_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        encounter_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        pre_auth_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        pa_code:
+          type:
+            - string
+            - "null"
+        claim_type:
+          type:
+            - string
+            - "null"
+          enum:
+            - outpatient
+            - inpatient
+            - emergency
+            - pharmacy
+            - lab
+            - radiology
+            - dental
+            - optical
+            - other
+            - null
+        status:
+          type: string
+        hmo_status:
+          type:
+            - string
+            - "null"
+          enum:
+            - PENDING
+            - APPROVED
+            - PARTIALLY_APPROVED
+            - REJECTED
+            - null
+        currency:
+          type:
+            - string
+            - "null"
+        amount_billed:
+          type:
+            - number
+            - "null"
+        amount_approved:
+          type:
+            - number
+            - "null"
+        paid_amount:
+          type:
+            - number
+            - "null"
+        written_off_amount:
+          type:
+            - number
+            - "null"
+        patient_responsibility:
+          type:
+            - number
+            - "null"
+        service_date_from:
+          type:
+            - string
+            - "null"
+          format: date-time
+        service_date_to:
+          type:
+            - string
+            - "null"
+          format: date-time
+        admission_date:
+          type:
+            - string
+            - "null"
+          format: date-time
+        discharge_date:
+          type:
+            - string
+            - "null"
+          format: date-time
+        is_floating:
+          type:
+            - boolean
+            - "null"
+        submitted_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        vetted_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        approved_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        paid_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        denial_reason:
+          type:
+            - string
+            - "null"
+        denial_code:
+          type:
+            - string
+            - "null"
+        created_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        updated_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsuranceClaimItem"
+        diagnoses:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsuranceDiagnosis"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsuranceClaimDocument"
+    InsuranceClaimSubmitItem:
+      type: object
+      additionalProperties: false
+      required:
+        - description
+        - unit_price
+      properties:
+        description:
+          type: string
+          maxLength: 300
+        item_type:
+          type: string
+          enum:
+            - consultation
+            - procedure
+            - medication
+            - lab_test
+            - imaging
+            - radiology
+            - service
+            - equipment
+            - hospitalization
+            - room_charge
+            - other
+          default: service
+        tariff_code:
+          type: string
+          maxLength: 100
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          default: 1
+        unit_price:
+          type: number
+          minimum: 0
+        service_date:
+          type: string
+          format: date-time
+    InsuranceDiagnosisInput:
+      type: object
+      additionalProperties: false
+      required:
+        - icd_code
+      properties:
+        icd_code:
+          type: string
+          maxLength: 20
+        name:
+          type: string
+          maxLength: 300
+        is_primary:
+          type: boolean
+    InsuranceClaimSubmit:
+      type: object
+      additionalProperties: false
+      description: A claim to submit to one of the clinic's insurers for a patient. It is saved as `submitted` with no money on it. `patient_id` must be a patient your organization is linked to (a clinic-owned key may use any of its clinic's patients). There is no field for a paid or written-off amount; sending one is refused as an unknown field.
+      required:
+        - patient_id
+        - insurance_company_id
+        - service_date_from
+        - items
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+        insurance_company_id:
+          type: string
+          format: uuid
+        enrollee_id:
+          type: string
+          format: uuid
+          description: Must be an enrollee of that patient with that insurer.
+        claim_type:
+          type: string
+          enum:
+            - outpatient
+            - inpatient
+            - emergency
+            - pharmacy
+            - lab
+            - radiology
+            - dental
+            - optical
+            - other
+          default: outpatient
+        service_date_from:
+          type: string
+          format: date-time
+        service_date_to:
+          type: string
+          format: date-time
+        admission_date:
+          type: string
+          format: date-time
+        discharge_date:
+          type: string
+          format: date-time
+        pa_code:
+          type: string
+          maxLength: 100
+        diagnoses:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/InsuranceDiagnosisInput"
+        items:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/InsuranceClaimSubmitItem"
+    InsuranceClaimLineDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - item_id
+        - status
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - approved
+            - adjusted
+            - declined
+          description: "`adjusted` approves less than was billed (set `qty_approved` and/or `unit_price_approved`); `approved` is exactly as billed."
+        qty_approved:
+          type: integer
+          minimum: 0
+        unit_price_approved:
+          type: number
+          minimum: 0
+        reason:
+          type: string
+          maxLength: 1000
+          description: Required for `declined` unless the body has a top-level `reason`.
+        comment:
+          type: string
+          maxLength: 500
+    InsuranceClaimAdjudication:
+      type: object
+      additionalProperties: false
+      description: "Vet a claim. `decision` sets what EVERY line gets (`approved` at billed figures, or `rejected` at zero); `items` overrides individual lines, so \"approve everything except this line\" is `decision: approved` plus one declined line. The claim's status follows the lines: all approved as billed - `approved`; all declined - `denied`; anything else - `partially_approved`. A rejection needs a `reason`. You can never approve more than was billed, and a claim the clinic has already recorded money against can no longer be vetted. Nothing here moves money."
+      required:
+        - decision
+      properties:
+        decision:
+          type: string
+          enum:
+            - approved
+            - rejected
+        reason:
+          type: string
+          maxLength: 1000
+        pa_code:
+          type: string
+          maxLength: 100
+          description: The authorization code the claim is matched to, if any.
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/InsuranceClaimLineDecision"
+    InsurancePreAuthorizationItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        item_type:
+          type:
+            - string
+            - "null"
+        description:
+          type:
+            - string
+            - "null"
+        tariff_code:
+          type:
+            - string
+            - "null"
+        quantity:
+          type:
+            - number
+            - "null"
+        unit_cost:
+          type:
+            - number
+            - "null"
+        total_cost:
+          type:
+            - number
+            - "null"
+        diagnosis:
+          type:
+            - string
+            - "null"
+        icd_cpt_code:
+          type:
+            - string
+            - "null"
+        medical_necessity:
+          type:
+            - string
+            - "null"
+        approval_status:
+          type:
+            - string
+            - "null"
+        is_approved:
+          type:
+            - boolean
+            - "null"
+        reject_reason:
+          type:
+            - string
+            - "null"
+    InsurancePreAuthorization:
+      type: object
+      description: A pre-authorization request the clinic sent to an insurer. `status` is `sent_for_authorization` until the insurer decides, then `approved` or `denied` (with `pa_code` on approval). `items` and `diagnoses` are on the single read only.
+      required:
+        - id
+        - request_number
+        - insurance_company_id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        request_number:
+          type: string
+        insurance_company_id:
+          type: string
+          format: uuid
+        insurance_plan_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        enrollee_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        encounter_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        request_type:
+          type:
+            - string
+            - "null"
+          enum:
+            - service
+            - procedure
+            - medication
+            - equipment
+            - hospitalization
+            - consultation
+            - lab_test
+            - null
+        priority_level:
+          type:
+            - string
+            - "null"
+          enum:
+            - routine
+            - urgent
+            - emergency
+            - null
+        status:
+          type: string
+          enum:
+            - draft
+            - ai_reviewed
+            - reviewed
+            - sent_for_authorization
+            - approved
+            - denied
+            - expired
+            - cancelled
+        estimated_cost:
+          type:
+            - number
+            - "null"
+        approved_amount:
+          type:
+            - number
+            - "null"
+        pa_code:
+          type:
+            - string
+            - "null"
+        pr_code:
+          type:
+            - string
+            - "null"
+        is_approved:
+          type:
+            - boolean
+            - "null"
+        is_handled:
+          type:
+            - boolean
+            - "null"
+        handled_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        rejection_reason:
+          type:
+            - string
+            - "null"
+        encounter_date:
+          type:
+            - string
+            - "null"
+          format: date-time
+        admission_start:
+          type:
+            - string
+            - "null"
+          format: date-time
+        admission_end:
+          type:
+            - string
+            - "null"
+          format: date-time
+        is_floating:
+          type:
+            - boolean
+            - "null"
+        submitted_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        created_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        updated_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsurancePreAuthorizationItem"
+        diagnoses:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsuranceDiagnosis"
+    InsurancePreAuthorizationSubmitItem:
+      type: object
+      additionalProperties: false
+      required:
+        - description
+        - unit_cost
+      properties:
+        description:
+          type: string
+          maxLength: 300
+        item_type:
+          type: string
+          enum:
+            - consultation
+            - procedure
+            - medication
+            - lab_test
+            - imaging
+            - radiology
+            - service
+            - equipment
+            - hospitalization
+          default: service
+        tariff_code:
+          type: string
+          maxLength: 100
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          default: 1
+        unit_cost:
+          type: number
+          minimum: 0
+        diagnosis:
+          type: string
+          maxLength: 300
+        icd_cpt_code:
+          type: string
+          maxLength: 50
+        medical_necessity:
+          type: string
+          maxLength: 2000
+    InsurancePreAuthorizationSubmit:
+      type: object
+      additionalProperties: false
+      description: A pre-authorization request to send to one of the clinic's insurers. It is saved as `sent_for_authorization`. `patient_id` must be a patient your organization is linked to.
+      required:
+        - patient_id
+        - insurance_company_id
+        - request_type
+        - items
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+        insurance_company_id:
+          type: string
+          format: uuid
+        enrollee_id:
+          type: string
+          format: uuid
+        request_type:
+          type: string
+          enum:
+            - service
+            - procedure
+            - medication
+            - equipment
+            - hospitalization
+            - consultation
+            - lab_test
+        priority_level:
+          type: string
+          enum:
+            - routine
+            - urgent
+            - emergency
+          default: routine
+        encounter_date:
+          type: string
+          format: date-time
+        diagnoses:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/InsuranceDiagnosisInput"
+        items:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/InsurancePreAuthorizationSubmitItem"
+    InsurancePreAuthorizationLineDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - item_id
+        - approved
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        approved:
+          type: boolean
+        reason:
+          type: string
+          maxLength: 1000
+    InsurancePreAuthorizationDecision:
+      type: object
+      additionalProperties: false
+      description: Decide a request that is `sent_for_authorization`. An approval needs `pa_code`; a denial needs `reason`. `approved_amount` (approval only) defaults to the estimated cost and may not exceed it. Lines you do not list follow the decision. A decided request cannot be decided again.
+      required:
+        - decision
+      properties:
+        decision:
+          type: string
+          enum:
+            - approved
+            - denied
+        pa_code:
+          type: string
+          maxLength: 100
+        approved_amount:
+          type: number
+          minimum: 0
+        reason:
+          type: string
+          maxLength: 1000
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/InsurancePreAuthorizationLineDecision"
+    InsurancePaymentAdviceAllocation:
+      type: object
+      additionalProperties: false
+      required:
+        - claim_id
+        - amount
+      properties:
+        claim_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          exclusiveMinimum: 0
+    InsurancePaymentAdvice:
+      type: object
+      description: "What an insurer says it paid the clinic. It is an ADVICE for clinic staff to reconcile: it never changes a claim, the clinic's payments or its books. `status` is `advised` until staff act on it."
+      required:
+        - id
+        - insurance_company_id
+        - amount
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        insurance_company_id:
+          type: string
+          format: uuid
+        paid_on:
+          type: string
+          format: date
+        amount:
+          type: number
+        currency:
+          type: string
+        method:
+          type: string
+          enum:
+            - bank_transfer
+            - eft
+            - cheque
+            - other
+        reference:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum:
+            - advised
+            - recorded
+            - declined
+        created_at:
+          type: string
+          format: date-time
+        allocations:
+          type: array
+          items:
+            type: object
+            properties:
+              claim_id:
+                type: string
+                format: uuid
+              amount:
+                type: number
+    InsurancePaymentAdviceCreate:
+      type: object
+      additionalProperties: false
+      description: A payment advice. Each allocation names a claim of that insurer that is awaiting payment and an amount no larger than what the claim still owes; the allocations may not add up to more than `amount`. `currency`, if sent, must be the clinic's currency.
+      required:
+        - insurance_company_id
+        - paid_on
+        - amount
+        - method
+      properties:
+        insurance_company_id:
+          type: string
+          format: uuid
+        paid_on:
+          type: string
+          format: date
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        currency:
+          type: string
+          maxLength: 10
+        method:
+          type: string
+          enum:
+            - bank_transfer
+            - eft
+            - cheque
+            - other
+        reference:
+          type: string
+          maxLength: 200
+        allocations:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/InsurancePaymentAdviceAllocation"
   parameters:
     IdempotencyKeyRequired:
       name: Idempotency-Key
@@ -8390,7 +9554,7 @@ paths:
       tags:
         - Notes
       summary: Create a draft note
-      description: "**Permission:** `notes:write` Create a DRAFT note. Always status=draft — this route can never sign, lock, finalize or co-sign. clinician_id is the clinic_staff.id the draft is FOR, never the API caller. Unknown content keys are refused (unknown_field) naming both the offending keys and the full valid list for whichever template note_type/custom_template_id resolves to. The answer carries the new note's details with `content: null`; read the note with `GET …/notes/{note_id}` to see its content."
+      description: "**Permission:** `notes:write` Create a DRAFT note. Always status=draft — this route can never sign, lock, finalize or co-sign. clinician_id is the clinic_staff.id the draft is FOR, never the API caller. Unknown content keys are refused (unknown_field) naming both the offending keys and the full valid list for whichever template note_type/custom_template_id resolves to. The answer is the full note, the same object `GET …/notes/{note_id}` returns: its details plus `content` and `citations`. A citation's `url`, when given, must be an `http://` or `https://` address; anything else is refused with a 400 naming `/citations/N/url`."
       security:
         - ApiKey: []
       parameters:
@@ -8488,7 +9652,7 @@ paths:
 
         Update a draft this key created, if no clinician has touched it since.
 
-        Refused note_not_editable if the note is signed/locked/finalized or a clinician saved it since this key's own last write. The answer carries the note's details with `content: null`; read the note with `GET …/notes/{note_id}` to see its content.
+        Refused note_not_editable if the note is signed/locked/finalized or a clinician saved it since this key's own last write. The answer is the full note, the same object `GET …/notes/{note_id}` returns: its details plus the new `content` and the note's `citations`.
       security:
         - ApiKey: []
       parameters:
@@ -9050,7 +10214,7 @@ paths:
 
         Reschedule or update an appointment. Immutable after create — patient_id, service_id, location_id, every payment field — are refused if sent.
 
-        A new `start_at` or `clinician_id` is checked exactly as a new booking is (the slot must be free and the clinician bookable). Other fields are plain edits; an absent field is unchanged. `status` may only move to `confirmed` here; use the cancel route to cancel. A cancelled, completed or no-show appointment cannot be changed. With a test key, rescheduling is not available: cancel the sandbox appointment and book a new one.
+        A new `start_at` or `clinician_id` is checked exactly as a new booking is (the slot must be free and the clinician bookable). Other fields are plain edits; an absent field is unchanged. `status` may only move to `confirmed` here; use the cancel route to cancel. A cancelled, completed or no-show appointment cannot be changed. With a test key the same edits work on the sandbox's fictional appointments, including a new time; a sandbox time is in UTC, and a slot that overlaps that clinician's other sandbox appointments is refused with `slot_taken`.
 
         Who is told. For a live (non-test) appointment that is still booked and in the future, changing `start_at`, `clinician_id` or `venue_type` emails the patient and any participants: a new time is a reschedule notice, a new clinician or venue is an "Appointment updated" notice. The clinicians involved are told in the app and by email: the new clinician that a visit was added, the previous clinician that it was removed, or the current clinician that it moved. This follows the clinic's appointment notification setting and each clinician's own email setting. With `email_notifications` false on the appointment the patient is not emailed, but the clinicians still are. Each later change sends its own notice, and the patient's reminder is re-armed for the new time. Test-key appointments never send email.
       security:
@@ -9689,7 +10853,7 @@ paths:
       tags:
         - Events
       summary: List events
-      description: The clinic's own change feed — catch-up for a partner whose webhook endpoint was down. Authorizes via the same scope-less /v1/me shape; filters to event types whose required_scope the key's CURRENT scopes cover.
+      description: "The clinic's own change feed — catch-up for a partner whose webhook endpoint was down. Needs no scope of its own: any valid key that can reach the clinic may read the feed. The feed is filtered to event types whose required_scope the key's CURRENT scopes cover."
       security:
         - ApiKey: []
       parameters:
@@ -10826,7 +11990,7 @@ paths:
 
         List one patient's prescriptions (read only).
 
-        `patient_id` is required. Prescriptions are read only and minimal: the drug, the dose, the frequency, the status and when it was written, with `source` telling a prescription sent through the clinic's e-prescribing connection (`eprescribe`) from one written in the clinic (`clinic`). There is no route to create or change a prescription. `status` filters by the prescription's status. A restricted patient's prescriptions, and any the clinic has marked sensitive, are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 MedicationRequest resources.
+        `patient_id` is required. Prescriptions are read only and minimal: the drug, the dose, the frequency, the status and when it was written, with `source` telling a prescription sent through the clinic's e-prescribing connection (`eprescribe`) from one written in the clinic (`clinic`). A prescription that exists only in the clinic's e-prescribing service is listed for the clinic's own keys only, never for an organization's key. There is no route to create or change a prescription. `status` filters by the prescription's status. A restricted patient's prescriptions, and any the clinic has marked sensitive, are never returned. With `Accept: application/fhir+json` the answer is a searchset Bundle of FHIR R4 MedicationRequest resources.
       security:
         - ApiKey: []
       parameters:
@@ -12299,6 +13463,955 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/Encounter"
+                  idempotent_replay:
+                    type: boolean
+                    description: Present and true when this Idempotency-Key was already used and the original answer is returned.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/enrollees:
+    get:
+      operationId: listInsuranceEnrollees
+      tags:
+        - HMO insurance
+      summary: List insurer enrollees
+      description: |-
+        **Permission:** `insurance.enrollees:read`
+
+        List the enrollees of your insurer.
+
+        For an organization the clinic linked to an insurer: that insurer's enrollees at this clinic. To verify an enrollee, send `insurance_no` (it also matches the alternate number). A clinic-owned key sees every insurer's enrollees. An organization with no insurer link is refused (`hmo_not_linked`); a clinic on the US insurance setup is refused (`insurance_region_unsupported`). A restricted patient's enrollee record is never returned.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: insurance_company_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: insurance_no
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - AA
+              - IA
+              - SX
+              - XX
+              - PP
+              - WP
+        - name: updated_since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - has_more
+                  - next_cursor
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InsuranceEnrollee"
+                  has_more:
+                    type: boolean
+                  next_cursor:
+                    type:
+                      - string
+                      - "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/enrollees/{enrollee_id}:
+    get:
+      operationId: getInsuranceEnrollee
+      tags:
+        - HMO insurance
+      summary: Get an insurer enrollee
+      description: |-
+        **Permission:** `insurance.enrollees:read`
+
+        Get one enrollee.
+
+        An enrollee of another insurer, an absent one and a restricted patient's are the same 404.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: enrollee_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InsuranceEnrollee"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/plans:
+    get:
+      operationId: listInsurancePlans
+      tags:
+        - HMO insurance
+      summary: List insurer plans
+      description: |-
+        **Permission:** `insurance.plans:read`
+
+        List your insurer's plans.
+
+        The plans of the insurer the clinic linked to your organization (every insurer for a clinic-owned key). Benefits are on the single-plan read.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: insurance_company_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - has_more
+                  - next_cursor
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InsurancePlan"
+                  has_more:
+                    type: boolean
+                  next_cursor:
+                    type:
+                      - string
+                      - "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/plans/{plan_id}:
+    get:
+      operationId: getInsurancePlan
+      tags:
+        - HMO insurance
+      summary: Get an insurer plan
+      description: |-
+        **Permission:** `insurance.plans:read`
+
+        Get one plan with its benefits.
+
+        Returns the plan and up to 500 benefit lines.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: plan_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InsurancePlan"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/claims:
+    get:
+      operationId: listInsuranceClaims
+      tags:
+        - HMO insurance
+      summary: List insurer claims
+      description: |-
+        **Permission:** `insurance.claims:read`
+
+        List claims submitted to your insurer.
+
+        For an organization the clinic linked to an insurer: that insurer's claims that the clinic has submitted. Claims still in the clinic's draft stages are never shown to an insurer. A clinic-owned key sees all of its clinic's claims. Lines, diagnoses and documents are on the single-claim read.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: insurance_company_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - submitted
+              - under_review
+              - additional_info_required
+              - approved
+              - partially_approved
+              - denied
+              - paid
+              - appealed
+              - closed
+              - partially_paid
+              - written_off
+              - draft
+              - ai_reviewed
+              - ready_to_submit
+        - name: hmo_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - APPROVED
+              - PARTIALLY_APPROVED
+              - REJECTED
+        - name: enrollee_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: updated_since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - has_more
+                  - next_cursor
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InsuranceClaim"
+                  has_more:
+                    type: boolean
+                  next_cursor:
+                    type:
+                      - string
+                      - "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+    post:
+      operationId: submitInsuranceClaim
+      tags:
+        - HMO insurance
+      summary: Submit an insurance claim
+      description: |-
+        **Permission:** `insurance.claims:submit`
+
+        Submit a claim to one of the clinic's insurers.
+
+        For a clinic-owned key, or an organization with NO insurer link (a developer). An organization linked to an insurer is refused (`role_required`): an insurer does not submit claims to itself. The claim is saved as `submitted`, answers 201 with the claim and its lines, and carries no money. The `Idempotency-Key` header is REQUIRED - a retry with the same key returns the original claim, never a second one.
+      security:
+        - ApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsuranceClaimSubmit"
+      responses:
+        "201":
+          description: Created - submitted, with its lines and no money recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InsuranceClaim"
+                  idempotent_replay:
+                    type: boolean
+                    description: Present and true when this Idempotency-Key was already used and the original answer is returned.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/claims/{claim_id}:
+    get:
+      operationId: getInsuranceClaim
+      tags:
+        - HMO insurance
+      summary: Get an insurer claim
+      description: |-
+        **Permission:** `insurance.claims:read`
+
+        Get one claim with its lines.
+
+        Includes `items` (billed and approved figures per line), `diagnoses` and `documents` (metadata only). A claim of another insurer, a draft and a restricted patient's claim are the same 404.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: claim_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InsuranceClaim"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/claims/{claim_id}/adjudication:
+    post:
+      operationId: adjudicateInsuranceClaim
+      tags:
+        - HMO insurance
+      summary: Vet an insurance claim
+      description: |-
+        **Permission:** `insurance.claims:adjudicate`
+
+        Vet a claim.
+
+        Approve, adjust or decline lines of a claim of the insurer the clinic linked to your organization. See the request body for how `decision` and `items` combine. Answers 200 with the claim. It never moves money: a claim the clinic has already recorded a payment or write-off against answers 409 `invalid_status_transition`. A clinic-owned key and an organization with no insurer link are refused (`hmo_not_linked`). The `Idempotency-Key` header is REQUIRED.
+      security:
+        - ApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: claim_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsuranceClaimAdjudication"
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InsuranceClaim"
+                  idempotent_replay:
+                    type: boolean
+                    description: Present and true when this Idempotency-Key was already used and the original answer is returned.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/pre-authorizations:
+    get:
+      operationId: listInsurancePreAuthorizations
+      tags:
+        - HMO insurance
+      summary: List pre-authorization requests
+      description: |-
+        **Permission:** `insurance.pa:read`
+
+        List pre-authorization requests sent to your insurer.
+
+        Requests the clinic has sent for authorization (and their outcome). Requests still in the clinic's draft or review stages are never shown to an insurer. A clinic-owned key sees all of its clinic's requests.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: insurance_company_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - draft
+              - ai_reviewed
+              - reviewed
+              - sent_for_authorization
+              - approved
+              - denied
+              - expired
+              - cancelled
+        - name: updated_since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - has_more
+                  - next_cursor
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InsurancePreAuthorization"
+                  has_more:
+                    type: boolean
+                  next_cursor:
+                    type:
+                      - string
+                      - "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+    post:
+      operationId: submitInsurancePreAuthorization
+      tags:
+        - HMO insurance
+      summary: Send a pre-authorization request
+      description: |-
+        **Permission:** `insurance.pa:submit`
+
+        Send a pre-authorization request to one of the clinic's insurers.
+
+        For a clinic-owned key, or an organization with NO insurer link. Saved as `sent_for_authorization`; answers 201 with the request. The `Idempotency-Key` header is REQUIRED.
+      security:
+        - ApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsurancePreAuthorizationSubmit"
+      responses:
+        "201":
+          description: Created - sent for authorization.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InsurancePreAuthorization"
+                  idempotent_replay:
+                    type: boolean
+                    description: Present and true when this Idempotency-Key was already used and the original answer is returned.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/pre-authorizations/{pa_id}:
+    get:
+      operationId: getInsurancePreAuthorization
+      tags:
+        - HMO insurance
+      summary: Get a pre-authorization request
+      description: |-
+        **Permission:** `insurance.pa:read`
+
+        Get one pre-authorization request with its lines.
+
+        A request of another insurer, an unsent one and a restricted patient's are the same 404.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: pa_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InsurancePreAuthorization"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/pre-authorizations/{pa_id}/decision:
+    post:
+      operationId: decideInsurancePreAuthorization
+      tags:
+        - HMO insurance
+      summary: Decide a pre-authorization request
+      description: |-
+        **Permission:** `insurance.pa:decide`
+
+        Approve or deny a pre-authorization request.
+
+        For the insurer the clinic linked to your organization. Only a request that is `sent_for_authorization` can be decided, once; a decided request answers 409 `invalid_status_transition`. Answers 200 with the request. A clinic-owned key and an organization with no insurer link are refused (`hmo_not_linked`). The `Idempotency-Key` header is REQUIRED.
+      security:
+        - ApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: pa_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsurancePreAuthorizationDecision"
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InsurancePreAuthorization"
+                  idempotent_replay:
+                    type: boolean
+                    description: Present and true when this Idempotency-Key was already used and the original answer is returned.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/insurance/payment-advices:
+    get:
+      operationId: listInsurancePaymentAdvices
+      tags:
+        - HMO insurance
+      summary: List payment advices
+      description: |-
+        **Permission:** `insurance.remittances:write`
+
+        List the payment advices.
+
+        The advices your insurer sent (every insurer's for a clinic-owned key). Needs the `insurance.remittances:write` permission.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: insurance_company_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - has_more
+                  - next_cursor
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InsurancePaymentAdvice"
+                  has_more:
+                    type: boolean
+                  next_cursor:
+                    type:
+                      - string
+                      - "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+    post:
+      operationId: createInsurancePaymentAdvice
+      tags:
+        - HMO insurance
+      summary: Send a payment advice
+      description: |-
+        **Permission:** `insurance.remittances:write`
+
+        Tell the clinic what your insurer paid.
+
+        Records an ADVICE for clinic staff to reconcile. It never changes a claim, a payment or the clinic's books - the clinic records the money itself. Answers 201 with the advice. Only for the insurer the clinic linked to your organization. The `Idempotency-Key` header is REQUIRED.
+      security:
+        - ApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsurancePaymentAdviceCreate"
+      responses:
+        "201":
+          description: Created - an advice, status `advised`.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InsurancePaymentAdvice"
                   idempotent_replay:
                     type: boolean
                     description: Present and true when this Idempotency-Key was already used and the original answer is returned.

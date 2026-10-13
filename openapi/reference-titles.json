@@ -104,5 +104,19 @@
   "listEncounters": "List encounters",
   "createEncounter": "Open an encounter",
   "getEncounter": "Get an encounter",
-  "updateEncounter": "Update an encounter"
+  "updateEncounter": "Update an encounter",
+  "listInsuranceEnrollees": "List insurer enrollees",
+  "getInsuranceEnrollee": "Get an insurer enrollee",
+  "listInsurancePlans": "List insurer plans",
+  "getInsurancePlan": "Get an insurer plan",
+  "listInsuranceClaims": "List insurer claims",
+  "submitInsuranceClaim": "Submit an insurance claim",
+  "getInsuranceClaim": "Get an insurer claim",
+  "adjudicateInsuranceClaim": "Vet an insurance claim",
+  "listInsurancePreAuthorizations": "List pre-authorization requests",
+  "submitInsurancePreAuthorization": "Send a pre-authorization request",
+  "getInsurancePreAuthorization": "Get a pre-authorization request",
+  "decideInsurancePreAuthorization": "Decide a pre-authorization request",
+  "listInsurancePaymentAdvices": "List payment advices",
+  "createInsurancePaymentAdvice": "Send a payment advice"
 }

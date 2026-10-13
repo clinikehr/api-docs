@@ -1,10 +1,10 @@
 ---
 title: "Data Protection Addendum for Organizations"
-description: "What an organization agrees to before it receives patient information through the ClinikEHR API. Version 2026-10-03."
+description: "What an organization agrees to before it receives patient information through the ClinikEHR API. Version 2026-10-09."
 icon: "/images/icons/shield-halved.svg"
 ---
 
-<p>{"Version 2026-10-03"}</p>
+<p>{"Version 2026-10-09"}</p>
 
 <p>{"Effective: the date it is published on the API site."}</p>
 
@@ -22,7 +22,7 @@ icon: "/images/icons/shield-halved.svg"
 
 ## 1A\. APPROVAL
 
-<p>{"1A.1 You may receive patient information only after we approve your organization for it, and only the kinds of information we approved (for example demographics, appointments, notes)."}</p>
+<p>{"1A.1 You may receive patient information only after we approve your organization for it, and only the kinds of information we approved (for example demographics, appointments, notes, or an insurer's enrollees, claims and authorization requests)."}</p>
 
 <p>{"1A.2 We may refuse an application, limit the kinds approved, or suspend or withdraw approval at any time — including if information you gave us is inaccurate, after an incident, or if you breach this addendum. Access stops on the next request."}</p>
 
@@ -47,6 +47,22 @@ icon: "/images/icons/shield-halved.svg"
 ## 3\. MINIMUM NECESSARY
 
 <p>{"3.1 You will ask for the least information that serves your purpose. The API returns a defined set of fields for each permission; fields a clinic restricts are not returned."}</p>
+
+## 3A\. IF A CLINIC LINKS YOU TO AN INSURER
+
+<p>{"3A.1 A clinic may record that your organization acts for one of the insurers or health maintenance organizations it works with. Only then may you receive that insurer's enrollees, plans, claims and authorization requests at that clinic, and only those of the insurer the clinic linked you to."}</p>
+
+<p>{"3A.2 You will use them only to administer that insurer's cover for the clinic's patients: to verify enrollees, vet claims, decide authorization requests and tell the clinic what was paid."}</p>
+
+<p>{"3A.3 A decision, adjustment or payment advice you send through the API is your organization's statement on behalf of that insurer, and the clinic may rely on it. It moves no money. Payment happens between the insurer and the clinic, outside the API."}</p>
+
+<p>{"3A.4 The clinic may end the link at any time. Access to that insurer's information stops on the next request, and section 7 applies to what you hold."}</p>
+
+<p>{"3B. INFORMATION WE DO NOT PROVIDE"}</p>
+
+<p>{"3B.1 Medication information that a clinic holds only through its electronic prescribing connection, and that was not written in ClinikEHR, is never provided to you, whatever permission or basis a clinic records. The rules of the electronic prescribing network allow that information to be used only within the clinic. A clinic cannot waive this."}</p>
+
+<p>{"3B.2 You will not try to obtain that information through the API by any other means."}</p>
 
 ## 4\. WHAT YOU MUST DO WITH IT
 

@@ -4,6 +4,10 @@ description: "List the payers a clinic has enabled, read a patient's insurance c
 icon: "/images/icons/shield-check.svg"
 ---
 
+import { InsuranceRegion } from '/snippets/insurance-region.mdx';
+
+<InsuranceRegion region="us" />
+
 Two resources work together. A **payer** is an insurance company the clinic has enabled. A **coverage** is one policy
 a patient holds with a payer: the member ID, the group, the subscriber and the dates.
 

@@ -1,0 +1,267 @@
+---
+title: "TypeScript client"
+description: "Install @clinikehr/api, make your first call, page through lists, handle errors and retries, and verify webhooks — from Node.js."
+icon: "/images/icons/code.svg"
+---
+
+`@clinikehr/api` is the official TypeScript client for the ClinikEHR API. It is a thin layer over the same HTTPS
+endpoints this reference documents, and it takes care of the parts that are easy to get wrong: sending your key,
+retrying safely, never creating a record twice, walking paged lists, typed errors and checking webhook signatures.
+
+| | |
+| --- | --- |
+| Package | [`@clinikehr/api`](https://www.npmjs.com/package/@clinikehr/api) on npm |
+| Source | [github.com/clinikehr/sdk-typescript](https://github.com/clinikehr/sdk-typescript) |
+| Runs on | Node.js 18 or later, and other server-side JavaScript runtimes with `fetch` and `crypto.randomUUID` |
+| Base URL | `https://api.clinikehr.com/v1` |
+
+## Install
+
+```bash
+npm install @clinikehr/api
+```
+
+The package ships both ES modules and CommonJS, with type definitions for every route. Each version is built from
+its public source by GitHub Actions and published with a signed provenance statement — check what you installed with:
+
+```bash
+npm audit signatures
+```
+
+## Your first call
+
+In the [developer portal](https://developer.clinikehr.com), switch to **Test** mode, open **Keys** and select
+**Create key**. A test key reaches only your workspace's sandbox — invented clinics, patients and stock — so you can try
+everything safely. Put it in your server's environment, never in source code:
+
+```bash
+export CLINIKEHR_API_KEY="ehr_test_…"
+```
+
+```ts
+import { createClient } from "@clinikehr/api";
+
+const client = createClient({ apiKey: process.env.CLINIKEHR_API_KEY! });
+
+const me = (await client.GET("/v1/me")) as {
+  key_id: string;
+  clinic_id: string | null;
+  environment: "live" | "test";
+  scopes: string[];
+  sandbox: boolean;
+};
+
+console.log(me.environment, me.scopes);
+```
+
+`GET /v1/me` tells you which key you are using, its environment and its permissions. With a test key, `clinic_id`
+is your sandbox clinic — use it in the calls below.
+
+## Calling a route
+
+The client has one method per HTTP verb: `GET`, `POST`, `PATCH` and `DELETE`. The path is the route exactly as this
+reference writes it, and your editor will autocomplete it. Path and query parameters go in `params`; a request body
+goes in `body`.
+
+```ts
+const clinicId = me.clinic_id!;
+
+const page = (await client.GET("/v1/clinics/{clinic_id}/inventory/items", {
+  params: {
+    path: { clinic_id: clinicId },
+    query: { limit: 25, status: "active" },
+  },
+})) as { data: Array<{ id: string; name: string }>; has_more: boolean; next_cursor: string | null };
+
+for (const item of page.data) console.log(item.id, item.name);
+```
+
+<Note>
+  These four methods return the response body as `unknown`, so you state the shape you expect, as above. For full
+  compile-time checking of parameters, bodies **and** responses against the API description, use `client.raw` —
+  see [Fully typed calls](#fully-typed-calls).
+</Note>
+
+A route your key's permissions do not cover answers `403` with the code `scope_missing`, and a route for a clinic your
+key cannot reach answers `404`. See [Permissions](/permissions).
+
+## Writing safely: idempotency is automatic
+
+Every `POST` and `PATCH` the client sends carries a fresh `Idempotency-Key`, and the **same** key is reused if the
+client retries that request. So a timeout after the server has already saved your record can never create a second
+one — the retry returns the first answer. Some `PATCH` routes, such as updating an appointment, require the header;
+the client always sends it, so you never have to. A `DELETE` carries a key only when you pass one. See
+[Retries and duplicates](/retries-and-idempotency).
+
+If your own job may repeat a logical operation (for example, a queue that redelivers a message), pass your own key so
+both attempts are recognised as one:
+
+```ts
+await client.POST("/v1/clinics/{clinic_id}/drug_requests", {
+  params: { path: { clinic_id: clinicId } },
+  body: { /* the drug request */ },
+  idempotencyKey: `drug-request:${message.id}`,
+});
+```
+
+## Retries
+
+The client retries a request that failed for a temporary reason, up to **4 attempts** in total:
+
+| Retried | Not retried |
+| --- | --- |
+| Network failures, rate limits (`429`) and server errors (`5xx`) on `GET` | Any `4xx` other than `429` — fix the request instead |
+| The same on `POST`, because it always carries an idempotency key, and on a `DELETE` you passed a key for | `PATCH` — never retried for you, though it carries a key; and a `DELETE` without one |
+
+Waits grow exponentially from 500 ms up to 8 s, with random jitter, and a `Retry-After` header from the API always
+wins. Change the policy when you create the client:
+
+```ts
+const client = createClient({
+  apiKey: process.env.CLINIKEHR_API_KEY!,
+  retry: { maxAttempts: 6, baseDelayMs: 250, maxDelayMs: 15_000 },
+});
+```
+
+See [Rate limits](/rate-limits) for the limits themselves.
+
+## Errors
+
+A refused request throws `ClinikEHRApiError`, carrying the API's [error](/errors) fields:
+
+```ts
+import { ClinikEHRApiError, TransportError } from "@clinikehr/api";
+
+try {
+  await client.GET("/v1/clinics/{clinic_id}/patients", { params: { path: { clinic_id: clinicId } } });
+} catch (err) {
+  if (err instanceof ClinikEHRApiError) {
+    console.error(err.status, err.code, err.requestId); // e.g. 403 scope_missing req_…
+    for (const field of err.problem.errors ?? []) console.error(field.pointer, field.message);
+    if (err.isRetryable) console.error("try again in", err.retryAfterSeconds, "s");
+  } else if (err instanceof TransportError) {
+    console.error("network failure after retries:", err.message);
+  } else {
+    throw err;
+  }
+}
+```
+
+| Property | What it is |
+| --- | --- |
+| `status` | The HTTP status |
+| `code` | The stable machine code, such as `invalid_key`, `scope_missing`, `rate_limited` — see [Errors](/errors) |
+| `requestId` | Quote it to support; it finds your request in our logs |
+| `problem` | The whole problem body, including field-level `errors` and any extra fields the code documents |
+| `isRetryable` | `true` for `429` and `5xx` |
+| `retryAfterSeconds` | From the `Retry-After` header, when sent |
+
+`TransportError` means the network failed on every attempt; the request may or may not have reached us. For a
+`POST`, retrying with the same `idempotencyKey` is safe.
+
+## Paging through a list
+
+List routes return one page at a time with `has_more` and `next_cursor`. `paginate` walks every page for you:
+
+```ts
+import { paginate } from "@clinikehr/api";
+
+type Item = { id: string; name: string };
+
+for await (const item of paginate<Item>(async (cursor) =>
+  (await client.GET("/v1/clinics/{clinic_id}/inventory/items", {
+    params: {
+      path: { clinic_id: clinicId },
+      query: { limit: 100, ...(cursor ? { starting_after: cursor } : {}) },
+    },
+  })) as { data: Item[]; has_more: boolean; next_cursor: string | null },
+)) {
+  console.log(item.name);
+}
+```
+
+It stops when `has_more` is `false`. See [Pagination](/pagination).
+
+## FHIR R4
+
+To receive FHIR resources instead of JSON, turn FHIR on for the whole client or for one call:
+
+```ts
+const fhirClient = createClient({ apiKey: process.env.CLINIKEHR_API_KEY!, fhir: true });
+
+const bundle = await client.GET("/v1/clinics/{clinic_id}/patients", {
+  params: { path: { clinic_id: clinicId } },
+  fhir: true, // Accept: application/fhir+json for this call only
+});
+```
+
+See [FHIR R4](/fhir) for which routes answer in FHIR and how.
+
+## Verifying a webhook
+
+`verifyWebhook` checks the signature on an event we deliver to your endpoint. Pass the **raw** request body — not a
+re-serialised object — and your endpoint's signing secret:
+
+```ts
+import { verifyWebhook, WebhookVerificationError } from "@clinikehr/api";
+
+export async function handleWebhook(req: Request): Promise<Response> {
+  const rawBody = await req.text();
+  try {
+    await verifyWebhook(
+      {
+        "webhook-id": req.headers.get("webhook-id") ?? "",
+        "webhook-timestamp": req.headers.get("webhook-timestamp") ?? "",
+        "webhook-signature": req.headers.get("webhook-signature") ?? "",
+      },
+      rawBody,
+      { secrets: [process.env.CLINIKEHR_WEBHOOK_SECRET!] },
+    );
+  } catch (err) {
+    if (err instanceof WebhookVerificationError) return new Response("invalid signature", { status: 400 });
+    throw err;
+  }
+  const event = JSON.parse(rawBody);
+  // Deliveries can repeat: deduplicate on the webhook-id header.
+  return new Response(null, { status: 204 });
+}
+```
+
+While you rotate a signing secret, pass both — `secrets: [current, previous]` — and either one is accepted. An event
+older than 5 minutes is refused (`toleranceSeconds` changes that). See
+[Verifying a webhook's signature](/verifying-webhook-signatures) and [Events](/events).
+
+## Fully typed calls
+
+`client.raw` is the generated client, typed from the API description: parameters, request bodies **and** responses
+are checked at compile time. It already sends your key, but it does not retry or add idempotency keys — use it for
+reads where you want the types, or add your own `Idempotency-Key` header on writes.
+
+```ts
+const { data, error } = await client.raw.GET("/v1/clinics/{clinic_id}/inventory/items", {
+  params: { path: { clinic_id: clinicId }, query: { limit: 10 } },
+});
+if (error) throw new Error(error.code);
+data.data.forEach((item) => console.log(item.name)); // typed
+```
+
+## Keep your key on the server
+
+`createClient` throws `BrowserEnvironmentError` when it runs in a web browser, whatever the key. An API key in a
+browser is readable by anyone who opens the page, and a live key reaches real patient information. Call the API from
+your server and give your front end only what it needs.
+
+## From test to live
+
+1. Build and test against your sandbox with a **test** key.
+2. To reach a real clinic, the clinic connects your organization and grants the permissions you need — see
+   [Connections](/connections). Anything about a patient also needs
+   [patient-data access](/patient-data-access).
+3. Create a **live** key and swap it in. Nothing else in your code changes.
+
+## Versions
+
+The client follows [semantic versioning](https://semver.org). While it is `0.x`, a minor version may change its
+interface; pin a version range you have tested (`npm install @clinikehr/api@0.1`; use 0.1.3 or later — earlier versions did not send the `Idempotency-Key` a `PATCH` route requires). Releases are listed in the
+[changelog](/changelog) and on [npm](https://www.npmjs.com/package/@clinikehr/api). Found a problem? Open an issue
+on [GitHub](https://github.com/clinikehr/sdk-typescript/issues).

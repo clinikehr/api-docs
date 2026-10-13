@@ -1,0 +1,24 @@
+
+
+export const INSURANCE_REGION_LABELS = {
+  us: 'United States',
+  non_us: 'Outside the US',
+};
+
+export const InsuranceRegion = ({ region }) => {
+  const us = region === 'us';
+  return (
+    <div className="ck-avail" role="note" aria-label="Which insurance setup this page is for">
+      <span className="ck-avail__label">Insurance</span>
+      <span className="ck-pill ck-pill--plan">{INSURANCE_REGION_LABELS[region] || region}</span>
+      <span className="ck-avail__note">
+        {us
+          ? 'For clinics on the US insurance setup: US payers and patients\' US coverage. A clinic outside the US keeps its insurers and patients\' cover in its HMO setup, so these routes return nothing for it. '
+          : 'For clinics on the insurance setup for outside the US: HMOs and international insurers, their enrollees, plans, claims and pre-authorizations. A clinic on the US setup answers insurance_region_unsupported. '}
+        {us
+          ? <a href="/insurance-hmos">Outside the US? See Insurance for HMOs and insurers.</a>
+          : <a href="/insurance">In the United States? See Insurance: payers and coverage.</a>}
+      </span>
+    </div>
+  );
+};

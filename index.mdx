@@ -63,6 +63,9 @@ Both kinds send the same `Authorization: Bearer` header, hit the same base URL, 
   <Card title="Insurance" icon="/images/icons/credit-card.svg" href="/insurance">
     The payers a clinic works with, and a patient's coverage.
   </Card>
+  <Card title="Insurance for HMOs" icon="/images/icons/shield-check.svg" href="/insurance-hmos">
+    Verify enrollees, vet claims, decide authorizations and report payments, or submit claims for a clinic.
+  </Card>
   <Card title="Connections to clinics" icon="/images/icons/plug.svg" href="/connections">
     Ask a clinic for access with a one-time code, and find listed pharmacies.
   </Card>
@@ -83,6 +86,7 @@ Anything about a patient (records, appointments, notes, allergies, medicines, re
   <Accordion title="Everything you can call today, resource by resource">
     - **Inventory**, for a clinic your key reaches: locations, catalogue items, availability bands, and exact stock — see [Inventory](/inventory) and [Stock bands](/stock-bands). Creating an item, receiving or adjusting stock, and recording a transfer are also live, with the same key — see [Retries and duplicates](/retries-and-idempotency) for the idempotency design every write uses.
     - **Insurance**: the payers a clinic has enabled, and a patient's coverage, which you can read and add (a coverage you add stays inactive until staff confirm it). It needs the same patient-data access as the records below. See [Insurance](/insurance).
+    - **Insurance for HMOs and insurers**: for a clinic outside the United States, the insurer the clinic links to your organization: its enrollees, plans, claims and authorization requests, which an insurer can vet, decide and report payments against, and which a developer can submit. The clinic decides what each connected organization is. It needs patient-data access. See [Insurance for HMOs and insurers](/insurance-hmos).
     - **Allergies**: a patient's allergies and intolerances, which you can read and send for a clinician to review. They need the same patient-data access as the records below. See [Allergies](/allergies).
     - **Referrals**: the referrals a clinic has received for a patient, which you can read and send for the clinic to review. The clinic alone accepts, declines or books them. They need the same patient-data access as the records below. See [Referrals](/referrals).
     - **Medications**: the medicines a patient reports, which you can read and send for a clinician to review, and the prescriptions written for them, which are read-only. They need the same patient-data access as the records below. See [Medications](/medications).
