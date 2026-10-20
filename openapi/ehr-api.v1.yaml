@@ -425,6 +425,12 @@ components:
             - boolean
             - "null"
           description: Computed from the clinic's own business hours. Null when hours are absent or malformed for today — never a guess.
+        store_url:
+          type:
+            - string
+            - "null"
+          format: uri
+          description: "The pharmacy's online store. Present ONLY when the store is safe to advertise: its page is enabled, it can take payment, the pharmacy is not on the listing-only plan, and ClinikEHR (not another system) holds its stock. Otherwise null. A pharmacy's own web address, when it has connected one, is used instead of the hosted address."
     ListingProfile:
       type: object
       required:
@@ -486,6 +492,12 @@ components:
             - string
             - "null"
           format: date-time
+        store_url:
+          type:
+            - string
+            - "null"
+          format: uri
+          description: "The pharmacy's online store. Present ONLY when the store is safe to advertise: its page is enabled, it can take payment, the pharmacy is not on the listing-only plan, and ClinikEHR (not another system) holds its stock. Otherwise null. A pharmacy's own web address, when it has connected one, is used instead of the hosted address."
     ListingSearchResult:
       type: object
       required:
@@ -526,6 +538,12 @@ components:
             - string
             - "null"
           format: date-time
+        store_url:
+          type:
+            - string
+            - "null"
+          format: uri
+          description: This product's page in the pharmacy's online store. Present ONLY when the store is safe to advertise (enabled page, able to take payment, not a listing-only plan, ClinikEHR holds the stock), the item is listed and not excluded, and an active, public store product is backed by this exact item. Otherwise null - never a guess, and never a link to the store's front page in place of the product. A pharmacy's own web address, when it has connected one, is used instead of the hosted address.
     ListingClinicItem:
       type: object
       required:
@@ -547,6 +565,12 @@ components:
             - string
             - "null"
           format: date-time
+        store_url:
+          type:
+            - string
+            - "null"
+          format: uri
+          description: This product's page in the pharmacy's online store. Present ONLY when the store is safe to advertise (enabled page, able to take payment, not a listing-only plan, ClinikEHR holds the stock), the item is listed and not excluded, and an active, public store product is backed by this exact item. Otherwise null - never a guess, and never a link to the store's front page in place of the product. A pharmacy's own web address, when it has connected one, is used instead of the hosted address.
     ListingSearchRequestItem:
       description: Exactly one of an identifier {system, value} or a free-text {q}.
       oneOf:
@@ -1418,17 +1442,20 @@ components:
           $ref: "#/components/schemas/DispensingFlagReason"
     ExternalStockBatchRow:
       type: object
+      description: "One product in a stock report. Send at least one identifier and at least one of `quantity` and `band`. A batch with any row that breaks these rules is rejected whole (`rejected_reason: invalid_rows`) and nothing is written."
       required:
         - identifiers
       properties:
         identifiers:
           type: array
+          minItems: 1
           items:
             $ref: "#/components/schemas/Identifier"
         quantity:
           type:
             - number
             - "null"
+          minimum: 0
         band:
           type:
             - string
@@ -4731,6 +4758,8 @@ components:
             - allergy
             - medication_statement
             - referral
+            - prescription_pickup_collection
+            - outreach_checkin
           description: The kind of record.
         action:
           type: string
@@ -4743,7 +4772,7 @@ components:
             - string
             - "null"
           format: uuid
-          description: The existing record an update or retract is about.
+          description: The existing record an update or retract is about — for `prescription_pickup_collection` this is the pickup being completed.
         review_status:
           type: string
           enum:
@@ -4789,7 +4818,12 @@ components:
             - "null"
         payload:
           type: object
-          description: What was submitted.
+          description: What was submitted. For `prescription_pickup_collection` this never carries the signature image — see `has_signature`.
+        has_signature:
+          type:
+            - boolean
+            - "null"
+          description: "`prescription_pickup_collection` only: whether a signature was included. The signature image itself is never returned. Null for every other resource_type."
     ProviderSpecialty:
       type: object
       required:
@@ -7197,6 +7231,327 @@ components:
           maxItems: 500
           items:
             $ref: "#/components/schemas/InsurancePaymentAdviceAllocation"
+    PickupAnswer:
+      type: object
+      required:
+        - id
+        - text_shown
+        - answer
+      properties:
+        id:
+          type: string
+        text_shown:
+          type: string
+          description: The exact wording shown when the answer was given.
+        answer:
+          type: string
+          enum:
+            - yes
+            - no
+    PickupLine:
+      type: object
+      description: "Exactly one of `prescription_id` / `pos_sale_item_id` is set: a full-edition in-house pharmacy's pickup lines carry `prescription_id`; a Pharmacy-edition till sale's pickup lines carry `pos_sale_item_id` instead (the sale's own line, not a prescription)."
+      properties:
+        prescription_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        pos_sale_item_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+    Pickup:
+      type: object
+      description: One prescription-pickup handover. Signatures are never returned — `has_signature` only. `agent_name` is never shown to an organization connection (only `agent_relationship` is). `pos_sale_id` is set, and `lines` carry `pos_sale_item_id` instead of `prescription_id`, for a Pharmacy-edition till sale's pickup; otherwise both are null.
+      required:
+        - id
+        - patient_id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - awaiting
+            - remote_pending
+            - collected
+            - voided
+        collected_by:
+          type:
+            - string
+            - "null"
+          enum:
+            - patient
+            - agent
+            - null
+        agent_name:
+          type:
+            - string
+            - "null"
+          description: Who collected, when collected_by is agent. Never shown to an organization connection — null there even when one was recorded.
+        agent_relationship:
+          type:
+            - string
+            - "null"
+        counselling:
+          type:
+            - string
+            - "null"
+          enum:
+            - accepted
+            - declined
+            - null
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickupAnswer"
+        has_signature:
+          type: boolean
+        privacy_acknowledged_version:
+          type:
+            - integer
+            - "null"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickupLine"
+        outreach_event_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        pos_sale_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+          description: Set for a Pharmacy-edition till sale's pickup; null for a full-edition in-house pharmacy pickup.
+        collected_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        voided_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        void_reason:
+          type:
+            - string
+            - "null"
+          description: Present only when voided.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PickupCollectionCreate:
+      type: object
+      additionalProperties: false
+      description: "A collection, submitted for clinician review — it never writes the pickup directly. `signature_data` is required: the clinic's single write path cannot mark a pickup collected without one. Send the image your own kiosk captured."
+      required:
+        - collected_by
+        - counselling
+        - signature_data
+      properties:
+        collected_by:
+          type: string
+          enum:
+            - patient
+            - agent
+        agent_name:
+          type: string
+          maxLength: 200
+          description: Required when collected_by is agent.
+        agent_relationship:
+          type: string
+          maxLength: 100
+          description: Required when collected_by is agent.
+        counselling:
+          type: string
+          enum:
+            - accepted
+            - declined
+        answers:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/PickupAnswer"
+          description: Only `id` and `answer` are read back; send the clinic's own question ids.
+        signature_data:
+          type: string
+          description: A PNG data URL, under 64 KB.
+        line_ids:
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            format: uuid
+          description: Prescription ids to hand over, for a partial pickup. Omit to hand over every line.
+        privacy_ack:
+          type: object
+          description: Present only when the clinic's privacy notice is due (GET the pickup first to check).
+        client_reference:
+          type: string
+          maxLength: 200
+        origin_assistant_name:
+          type: string
+          maxLength: 200
+    OutreachStation:
+      type: object
+      required:
+        - id
+        - name
+        - kind
+        - position
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+            - intake
+            - vitals
+            - lab
+            - radiology
+            - consultation
+            - dental
+            - vision
+            - pharmacy
+            - custom
+        position:
+          type: integer
+    OutreachEvent:
+      type: object
+      required:
+        - id
+        - name
+        - starts_on
+        - ends_on
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        starts_on:
+          type: string
+          format: date
+        ends_on:
+          type: string
+          format: date
+        location_text:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum:
+            - planned
+            - open
+            - closed
+        closed_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        stations:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutreachStation"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    OutreachStationProgress:
+      type: object
+      required:
+        - station_id
+        - name
+        - kind
+        - position
+        - status
+      properties:
+        station_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+            - intake
+            - vitals
+            - lab
+            - radiology
+            - consultation
+            - dental
+            - vision
+            - pharmacy
+            - custom
+        position:
+          type: integer
+        status:
+          type: string
+          enum:
+            - pending
+            - done
+            - skipped
+    OutreachAttendee:
+      type: object
+      required:
+        - id
+        - event_id
+        - patient_id
+        - checked_in_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        event_id:
+          type: string
+          format: uuid
+        patient_id:
+          type: string
+          format: uuid
+        checked_in_at:
+          type: string
+          format: date-time
+        progress:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutreachStationProgress"
+    OutreachAttendeeCheckinCreate:
+      type: object
+      additionalProperties: false
+      description: A check-in for an EXISTING patient, submitted for clinician review. Create the patient first with `POST /v1/clinics/{clinic_id}/patients`.
+      required:
+        - patient_id
+      properties:
+        patient_id:
+          type: string
+          format: uuid
+        client_reference:
+          type: string
+          maxLength: 200
+        origin_assistant_name:
+          type: string
+          maxLength: 200
   parameters:
     IdempotencyKeyRequired:
       name: Idempotency-Key
@@ -7246,7 +7601,7 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
     Conflict:
-      description: "The request is well-formed but conflicts with the CURRENT STATE of the record — a double-booked slot (`slot_taken`), a clinician's calendar blocked at that time (`out_of_office`), nobody eligible free (`no_provider_available`), an item that still has stock (`item_has_stock`), an item that has been used and so cannot be deleted (`item_has_history`), a ledger movement that cannot be covered (`insufficient_stock`, `expired_stock_not_transferable`), a note already signed or clinician-touched (`note_not_editable`), an Idempotency-Key already used for a different request or still in flight (`idempotency_key_conflict`, `idempotency_key_reused`), or an external-stock batch rejected as structurally invalid or a suspicious shrink versus the clinic's last accepted batch (`batch_rejected`), or an outside record that conflicts with what was already submitted or decided: the same `client_reference` sent again with different content (`client_reference_conflict`), or a submission a clinician has already decided (`submission_not_pending`), or an insurance write that conflicts with the clinic's setup or the coverage's state: the patient already has a coverage for that payer (`coverage_exists`, the existing coverage's id is in `detail` when the caller can see that patient), a payer the clinic has not enabled in Settings → Insurance (`payer_not_enabled`), or `coverage_active: true` sent through the API (`activation_requires_staff` — only clinic staff activate a coverage), or a change to an outside care provider the clinic added rather than an app (`care_provider_clinic_managed` — only the clinic can change or remove it)."
+      description: "The request is well-formed but conflicts with the CURRENT STATE of the record — a double-booked slot (`slot_taken`), a clinician's calendar blocked at that time (`out_of_office`), nobody eligible free (`no_provider_available`), an item that still has stock (`item_has_stock`), an item that has been used and so cannot be deleted (`item_has_history`), a ledger movement that cannot be covered (`insufficient_stock`, `expired_stock_not_transferable`), a note already signed or clinician-touched (`note_not_editable`), an Idempotency-Key already used for a different request or still in flight (`idempotency_key_conflict`, `idempotency_key_reused`), or an external-stock batch rejected as structurally invalid or a suspicious shrink versus the clinic's last accepted batch (`batch_rejected`), a stock report sent to a pharmacy that is not set to take one from another system (`external_stock_mode_required`), or an outside record that conflicts with what was already submitted or decided: the same `client_reference` sent again with different content (`client_reference_conflict`), or a submission a clinician has already decided (`submission_not_pending`), or an insurance write that conflicts with the clinic's setup or the coverage's state: the patient already has a coverage for that payer (`coverage_exists`, the existing coverage's id is in `detail` when the caller can see that patient), a payer the clinic has not enabled in Settings → Insurance (`payer_not_enabled`), or `coverage_active: true` sent through the API (`activation_requires_staff` — only clinic staff activate a coverage), or a change to an outside care provider the clinic added rather than an app (`care_provider_clinic_managed` — only the clinic can change or remove it)."
       content:
         application/problem+json:
           schema:
@@ -8977,7 +9332,7 @@ paths:
       tags:
         - Inventory
       summary: Upload an external stock batch
-      description: "**Permission:** `inventory.stock:write` Upload a batch of external stock quantities/bands for a pharmacy selling through another till. Clinic-owned key only — an organization never pushes a clinic's own stock. batch_id doubles as the idempotency key (a replay of an already-processed batch returns the stored result, never reprocesses). Unmatched rows are counted, never guessed at, never written. A structurally invalid or suspiciously-shrunk batch is rejected (409) — nothing is written to the mirror."
+      description: "**Permission:** `inventory.stock:write` Upload a batch of external stock quantities/bands for a pharmacy selling through another till. Clinic-owned key only — an organization never pushes a clinic's own stock. batch_id doubles as the idempotency key (a replay of an already-processed batch returns the stored result, never reprocesses). Unmatched rows are counted, never guessed at, never written. A structurally invalid or suspiciously-shrunk batch is rejected (409 `batch_rejected`, with the reason in `detail`) — nothing is written to the mirror. A pharmacy that is not set to take a stock report from another system is refused (409 `external_stock_mode_required`) before anything is read or written. Permission: a key needs EITHER `inventory.external_stock:write` (the narrow permission for exactly this report; any paid pharmacy plan, including the listing plan) OR `inventory.stock:write` (Team and above). A key with only the narrow permission cannot read, adjust or receive stock."
       security:
         - ApiKey: []
       parameters:
@@ -9016,6 +9371,12 @@ paths:
       tags:
         - Inventory
       summary: Get an external stock batch
+      description: |-
+        **Permission:** `inventory.stock:read`
+
+        The stored batch's own status and counts — never the row-level data.
+
+        Needs `inventory.stock:read` OR the narrow `inventory.external_stock:write` (the key that sent the report can read back its status).
       security:
         - ApiKey: []
       parameters:
@@ -9051,10 +9412,6 @@ paths:
           $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/TooManyRequests"
-      description: |-
-        **Permission:** `inventory.stock:read`
-
-        The stored batch's own status and counts — never the row-level data.
   /v1/clinics/{clinic_id}/crm/pipelines:
     get:
       operationId: listCrmPipelines
@@ -14415,6 +14772,465 @@ paths:
                   idempotent_replay:
                     type: boolean
                     description: Present and true when this Idempotency-Key was already used and the original answer is returned.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/prescription-pickups:
+    get:
+      operationId: listPrescriptionPickups
+      tags:
+        - Prescription pickups
+      summary: List prescription pickups
+      description: |-
+        **Permission:** `pickups:read`
+
+        List one patient's prescription pickup handovers.
+
+        `patient_id` is required. Each pickup covers one or more dispensed lines. The signature image is never returned — `has_signature` only. `agent_name` is never shown to an organization connection.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: patient_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - awaiting
+              - remote_pending
+              - collected
+              - voided
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - has_more
+                  - next_cursor
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Pickup"
+                  has_more:
+                    type: boolean
+                  next_cursor:
+                    type:
+                      - string
+                      - "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/prescription-pickups/{pickup_id}:
+    get:
+      operationId: getPrescriptionPickup
+      tags:
+        - Prescription pickups
+      summary: Get a prescription pickup
+      description: |-
+        **Permission:** `pickups:read`
+
+        Read one prescription pickup.
+
+        Absent and not-permitted answer the same 404.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: pickup_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Pickup"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/prescription-pickups/{pickup_id}/collection:
+    post:
+      operationId: createPrescriptionPickupCollection
+      tags:
+        - Prescription pickups
+      summary: Submit a pickup collection
+      description: |-
+        **Permission:** `pickups:write`
+
+        Submit a prescription pickup collection for clinician review.
+
+        Held for review and answers 202 Accepted with a `Location` header pointing at the submission; the pickup stays `awaiting` until a clinician confirms it in ClinikEHR, or the clinic has chosen automatic acceptance for this key — then it is confirmed immediately and the body already shows `review_status: confirmed`. On confirm, staff run the SAME single write path the pharmacy counter uses — never a parallel write. The `Idempotency-Key` header is REQUIRED.
+      security:
+        - ApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: pickup_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PickupCollectionCreate"
+      responses:
+        "202":
+          description: "Accepted — waiting for a clinician. If the clinic has chosen to accept this kind of item from your key or connection without review, the body already shows `review_status: confirmed` and `accepted_automatically: true`; read `review_status`, not the status code."
+          headers:
+            Location:
+              description: The submission, `…/submissions/{submission_id}`.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Submission"
+                  idempotent_replay:
+                    type: boolean
+                    description: Present and true when this Idempotency-Key was already used and the original submission is returned.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/outreach-events:
+    get:
+      operationId: listOutreachEvents
+      tags:
+        - Outreach events
+      summary: List outreach events
+      description: |-
+        **Permission:** `outreach:read`
+
+        List this clinic's outreach (screening-day) events.
+
+        Events and stations carry no patient data.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - planned
+              - open
+              - closed
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - has_more
+                  - next_cursor
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OutreachEvent"
+                  has_more:
+                    type: boolean
+                  next_cursor:
+                    type:
+                      - string
+                      - "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/clinics/{clinic_id}/outreach-events/{event_id}:
+    get:
+      operationId: getOutreachEvent
+      tags:
+        - Outreach events
+      summary: Get an outreach event
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/OutreachEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+      description: |-
+        **Permission:** `outreach:read`
+
+        Read one outreach event, with its stations.
+  /v1/clinics/{clinic_id}/outreach-events/{event_id}/attendees:
+    get:
+      operationId: listOutreachEventAttendees
+      tags:
+        - Outreach events
+      summary: List outreach event attendees
+      description: |-
+        **Permission:** `outreach:read`
+
+        List who is checked in to an outreach event.
+
+        A restricted patient and, for an organization key, a patient your connection is not linked to, are both excluded from the rows.
+      security:
+        - ApiKey: []
+      parameters:
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+        - name: starting_after
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - has_more
+                  - next_cursor
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OutreachAttendee"
+                  has_more:
+                    type: boolean
+                  next_cursor:
+                    type:
+                      - string
+                      - "null"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+    post:
+      operationId: createOutreachEventAttendee
+      tags:
+        - Outreach events
+      summary: Check an attendee in
+      description: |-
+        **Permission:** `outreach:write`
+
+        Check an existing patient in to an outreach event, for clinician review.
+
+        Create the patient first with `POST /v1/clinics/{clinic_id}/patients`. Held for review and answers 202 Accepted with a `Location` header pointing at the submission, or immediately confirmed when the clinic has chosen automatic acceptance for this key. On confirm, staff run the SAME single write path the app's own Check in button uses. The `Idempotency-Key` header is REQUIRED.
+      security:
+        - ApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyRequired"
+        - name: clinic_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutreachAttendeeCheckinCreate"
+      responses:
+        "202":
+          description: "Accepted — waiting for a clinician. If the clinic has chosen to accept this kind of item from your key or connection without review, the body already shows `review_status: confirmed` and `accepted_automatically: true`; read `review_status`, not the status code."
+          headers:
+            Location:
+              description: The submission, `…/submissions/{submission_id}`.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Submission"
+                  idempotent_replay:
+                    type: boolean
+                    description: Present and true when this Idempotency-Key was already used and the original submission is returned.
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":

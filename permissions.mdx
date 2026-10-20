@@ -36,6 +36,7 @@ Every key is created with a specific set of scopes — chosen by the clinic when
 | `inventory.stock:read` | Read-only | Exact quantities, per location and lot. This is the most sensitive of the three — most integrations don't need it. |
 | `inventory.items:write` | Write | Create or update a catalogue item, and register your own identifier for one — see [Uploading your own medicine codes](/uploading-partner-codes). |
 | `inventory.stock:write` | Write | Receive stock, adjust a quantity, or record a transfer — through the same ledger the clinic's own staff use. |
+| `inventory.external_stock:write` | Write | Send a pharmacy's **stock report** from another system, and read back the status of the reports it sent. Nothing else: it cannot read, adjust or receive stock. Available on every paid pharmacy plan, including the Listing plan. See [Send a stock report](/inventory#send-a-stock-report). |
 
 ## Insurance payers
 
@@ -75,6 +76,8 @@ An organization is approved by **kind of data**; each kind covers these scopes:
 | Visits | `encounters:read`, `encounters:write` |
 | Drug requests | `requests:read`, `requests:write` |
 | Dispensing history | `dispensing:read` |
+| Prescription pickups | `pickups:read`, `pickups:write` |
+| Outreach events | `outreach:read`, `outreach:write` |
 
 | Scope | Read/write | Gives you |
 | --- | --- | --- |
@@ -94,6 +97,8 @@ An organization is approved by **kind of data**; each kind covers these scopes:
 | `encounters:read` / `encounters:write` | Read / write | A patient's visits as the clinic documents them: status, dates, reason for the visit and clinician, never clinical text or billing. Write **opens a draft visit** for a clinician to complete, and changes the details of a draft your app opened until a person touches it. It never orders, bills, signs, locks or finalises — see [Encounters](/encounters). |
 | `requests:read` / `requests:write` | Read / write | Drug requests sent to a clinic — see [Drug requests](/drug-requests). |
 | `dispensing:read` | Read-only | The dispensing history of an enrollee you are linked to, and the refill and duplicate-dispensing flags a pharmacist has recorded for linked enrollees. Never a price, never another customer, never a staff member's name. |
+| `pickups:read` / `pickups:write` | Read / write | Prescription pickup records: who collected, counselling, the clinic's own questions and answers, and whether a signature is on file; write **sends a pickup collection for clinician review**. The signature image is never returned, and `agent_name` is never shown to an organization — see [Prescription pickups](/prescription-pickups). |
+| `outreach:read` / `outreach:write` | Read / write | Outreach (screening-day) events, their stations and who is checked in; write **sends a check-in for clinician review**, for an existing patient only — see [Outreach events](/outreach-events). |
 
 ## Listing scopes — the pharmacy network
 

@@ -1,0 +1,173 @@
+---
+title: "Outreach events"
+description: "Read a clinic's outreach (screening-day) events and who is checked in, and check an existing patient in for a clinician to review."
+icon: "/images/icons/shield-check.svg"
+---
+
+<Warning>
+  **Not yet available.** Outreach events are not yet live on `api.clinikehr.com`. This page describes the routes
+  exactly as they will work once they ship — check the [changelog](/changelog) before building against them.
+</Warning>
+
+An **outreach event** is a clinic's off-site, one-day (or multi-day) screening event: a health fair, a community
+screening, a mobile clinic day. The clinic sets up **stations** (intake, vitals, lab, consultation, and so on) and
+**checks patients in** as they arrive. Reading an event, its stations and who is checked in is immediate.
+**Checking a patient in is different** — exactly like [Conditions](/conditions) and the other outside-submission
+resources. A check-in you send is held for a clinician to review, and only a clinician's decision (or the clinic's
+own choice to accept automatically) actually checks the patient in, the same way the event's own check-in screen
+does. Read [Reviewing outside submissions](/reviewing-outside-submissions) first if you have not already.
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List a clinic's events | `GET /v1/clinics/{clinic_id}/outreach-events` | `outreach:read` |
+| Read one event (with its stations) | `GET /v1/clinics/{clinic_id}/outreach-events/{event_id}` | `outreach:read` |
+| List who is checked in | `GET /v1/clinics/{clinic_id}/outreach-events/{event_id}/attendees` | `outreach:read` |
+| Check an existing patient in | `POST /v1/clinics/{clinic_id}/outreach-events/{event_id}/attendees` | `outreach:write` |
+| Follow what happened to a submission | `GET /v1/clinics/{clinic_id}/submissions/{submission_id}` | `outreach:write` (for now, even to read) |
+
+An event is **created by the clinic** in ClinikEHR — there is no route to create one from the API. Your key reads
+events the clinic already set up and checks existing patients in to them. **The patient must already exist** —
+create one first with `POST /v1/clinics/{clinic_id}/patients` (see [Patients](/patients)) before checking them in.
+A patient the clinic has restricted, or an event that does not exist, returns `404` with `code: "not_found"`. The two
+are never told apart. See [Errors](/errors).
+
+## What an event looks like
+
+Events and stations carry **no patient information** — reading the event list needs `outreach:read` but no
+additional patient-data approval beyond the `outreach` kind itself.
+
+```json
+{
+  "id": "5b0c6f0e-1111-4a2b-9c3d-0123456789ab",
+  "name": "Riverside community health day",
+  "starts_on": "2026-11-02",
+  "ends_on": "2026-11-02",
+  "location_text": "Riverside Community Center",
+  "status": "open",
+  "closed_at": null,
+  "stations": [
+    { "id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd", "name": "Intake", "kind": "intake", "position": 0 },
+    { "id": "d4f2c3b5-4444-4d5e-9f6a-3456789abcde", "name": "Vitals", "kind": "vitals", "position": 1 }
+  ],
+  "created_at": "2026-10-01T09:00:00Z",
+  "updated_at": "2026-10-01T09:00:00Z"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `planned` (not open yet), `open` (checking people in), or `closed`. A check-in can only be confirmed while the event is `open`. |
+| `stations.kind` | `intake`, `vitals`, `lab`, `radiology`, `consultation`, `dental`, `vision`, `pharmacy` or `custom`. |
+
+## List events
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/outreach-events" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Meaning |
+| --- | --- |
+| `status` | `planned`, `open` or `closed`. Omit to see every status. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+## List who is checked in
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/outreach-events/EVENT_ID/attendees" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "e5f3d4c6-5555-4e6f-9a7b-456789abcdef",
+      "event_id": "5b0c6f0e-1111-4a2b-9c3d-0123456789ab",
+      "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+      "checked_in_at": "2026-11-02T08:15:00Z",
+      "progress": [
+        { "station_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd", "name": "Intake", "kind": "intake", "position": 0, "status": "done" },
+        { "station_id": "d4f2c3b5-4444-4d5e-9f6a-3456789abcde", "name": "Vitals", "kind": "vitals", "position": 1, "status": "pending" }
+      ]
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null
+}
+```
+
+`progress` shows each station's status for this attendee: `done`, `skipped`, or `pending` (not yet visited). This is
+read-only here — recording a station visit is a clinic staff action in ClinikEHR, not a route this API exposes.
+
+Each row is excluded, rather than refusing the whole list, when the patient is one your key or connection is not
+allowed to see — a restricted patient, or, for an organization key, a patient your connection is not linked to.
+
+## Check a patient in
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/outreach-events/EVENT_ID/attendees" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{ "patient_id": "PATIENT_ID", "client_reference": "scan-2026-11-02-0031" }'
+```
+
+| Field | Notes |
+| --- | --- |
+| `patient_id` | Required. Must already exist — create the patient first with `POST /v1/clinics/{clinic_id}/patients`. |
+| `client_reference` | Optional. Your own id for the item. Reusing one for a different item returns `409 client_reference_conflict`. |
+| `origin_assistant_name` | Optional. The name of your system. The clinic's reviewer sees it as the sender. |
+
+**`Idempotency-Key` is required.** Sending the same key again returns the first answer and does not create a second
+submission. See [Retries and duplicates](/retries-and-idempotency).
+
+### The answer is 202, not 200
+
+```http
+HTTP/1.1 202 Accepted
+Location: /v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID
+```
+
+The body is the submission, showing `"review_status": "pending"`. The patient is **not** checked in yet. **Read the
+body, not the status code** — if the clinic has chosen to accept outreach check-ins from your key automatically, the
+same `202` already shows `"review_status": "confirmed"` and `"accepted_automatically": true`. See
+[Automatic acceptance](/automatic-acceptance). A check-in can only ever be confirmed while the event is `open`; one
+sent against a `planned` or `closed` event is refused before it is ever created as a submission.
+
+## After you send one
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+- `pending`: waiting for a person at the clinic.
+- `confirmed`: a clinician (or the clinic's automatic acceptance) checked the patient in, through the same single
+  path the event's own check-in screen uses. `result_record_id` is the attendee record.
+- `rejected`: declined, with the reason — for example, the patient was already checked in to this event by the time
+  it was reviewed (checking the same patient in twice is harmless, not an error, at the attendee record itself, but
+  a submission can still be rejected if the event closed in the meantime).
+- `withdrawn`: you took it back while it was pending.
+
+Only the key or organization that sent a submission can read it. A submission that has been decided cannot be
+changed (`409 submission_not_pending`).
+
+## Clinical records tagged to an event
+
+A patient's triage, vitals, consultation, notes, lab tests, radiology, prescriptions and documents made **while
+checked in and while a clinic staff member has the event open on their own screen** carry the event's id inside ClinikEHR.
+Those records' own routes (for example [Encounters](/encounters)) do not return or filter on the event id yet; use
+[List who is checked in](#list-who-is-checked-in) to know who attended. This API never lets you set that tag
+yourself — it is the clinic's own session that stamps it.
+
+## A worked example
+
+1. The clinic sets up "Riverside community health day" in ClinikEHR with Intake and Vitals stations, and opens it.
+2. A patient arrives. Your system has already registered them (`POST /v1/clinics/{clinic_id}/patients`), so you send `POST …/outreach-events/EVENT_ID/attendees` with their `patient_id` and an `Idempotency-Key`. The answer is `202`.
+3. A clinician at the check-in desk reviews it in **Outside submissions** and selects **Accept**.
+4. You read the submission again: `confirmed`, with `result_record_id` pointing at the attendee record.
+5. `GET …/outreach-events/EVENT_ID/attendees` now lists the patient, with `progress` showing each station as `pending`.
+
+A test key reaches only your workspace's sandbox, which holds invented patients, so you can try the requests above
+without touching a real event.

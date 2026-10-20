@@ -1,0 +1,172 @@
+---
+title: "Prescription pickups"
+description: "Read who collected a prescription, when, and whether a signature is on file — and submit a pickup collection for a clinician to review."
+icon: "/images/icons/prescription-bottle-medical.svg"
+---
+
+<Warning>
+  **Not yet available.** Prescription pickups are not yet live on `api.clinikehr.com`. This page describes the
+  routes exactly as they will work once they ship — check the [changelog](/changelog) before building against them.
+</Warning>
+
+A **prescription pickup** is one handover at the pharmacy counter: who collected a patient's dispensed medicine,
+whether counselling was offered, the clinic's own yes/no questions and their answers, and whether a signature is on
+file. Reading is immediate. **Submitting a collection is different** — exactly like [Conditions](/conditions),
+[Allergies](/allergies) and the other outside-submission resources. A collection you send is held for a clinician to
+review, and only a clinician's decision (or the clinic's own choice to accept automatically) actually records it,
+the same way the pharmacy counter's own screen does. Read [Reviewing outside submissions](/reviewing-outside-submissions)
+first if you have not already.
+
+| You want to | Endpoint | Permission |
+| --- | --- | --- |
+| List a patient's pickups | `GET /v1/clinics/{clinic_id}/prescription-pickups?patient_id=…` | `pickups:read` |
+| Read one pickup | `GET /v1/clinics/{clinic_id}/prescription-pickups/{pickup_id}` | `pickups:read` |
+| Submit a collection | `POST /v1/clinics/{clinic_id}/prescription-pickups/{pickup_id}/collection` | `pickups:write` |
+| Follow what happened to a submission | `GET /v1/clinics/{clinic_id}/submissions/{submission_id}` | `pickups:write` (for now, even to read) |
+
+A pickup is **created by the clinic** when it dispenses a prescription — there is no route to create one from the
+API. Your key reads and completes pickups the clinic already created; it never invents one. The patient must be one
+your key is allowed to see. A patient the clinic has restricted, or a pickup that does not exist, returns `404` with
+`code: "not_found"`. The two are never told apart. See [Errors](/errors).
+
+## What a pickup looks like
+
+```json
+{
+  "id": "5b0c6f0e-1111-4a2b-9c3d-0123456789ab",
+  "patient_id": "9d2e7a10-2222-4b3c-8d4e-123456789abc",
+  "status": "collected",
+  "collected_by": "patient",
+  "agent_name": null,
+  "agent_relationship": null,
+  "counselling": "accepted",
+  "answers": [
+    { "id": "allergy_check", "text_shown": "Any new allergies since your last visit?", "answer": "no" }
+  ],
+  "has_signature": true,
+  "privacy_acknowledged_version": 3,
+  "lines": [
+    { "prescription_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd", "pos_sale_item_id": null }
+  ],
+  "outreach_event_id": null,
+  "pos_sale_id": null,
+  "collected_at": "2026-10-01T14:32:00Z",
+  "voided_at": null,
+  "void_reason": null,
+  "created_at": "2026-10-01T09:00:00Z",
+  "updated_at": "2026-10-01T14:32:00Z"
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `awaiting` (not yet handed over), `remote_pending` (a remote-signing link was sent), `collected`, or `voided`. |
+| `collected_by` | `patient` or `agent`. `null` until the pickup is collected. |
+| `agent_name` | Who collected, when `collected_by` is `agent`. **Never shown to an organization connection** — a clinic-owned key sees it; an organization sees `null` even when one was recorded. |
+| `agent_relationship` | The agent's relationship to the patient. Shown to everyone who can see the pickup. |
+| `counselling` | `accepted` or `declined`. `null` until collected. |
+| `answers` | The clinic's own yes/no questions, each with the **exact wording shown** when the answer was given — a clinic that edits a question later does not change what an earlier pickup recorded. |
+| `has_signature` | Whether a signature is on file. **The signature image itself is never returned by this API**, under any permission. |
+| `privacy_acknowledged_version` | The version of the clinic's privacy notice the patient acknowledged for this pickup, or `null` when none was due. |
+| `lines` | The dispensed lines this pickup covers. Exactly one of `prescription_id` / `pos_sale_item_id` is set per line — see below. |
+| `outreach_event_id` | Set when this pickup happened at an [outreach event](/outreach-events). |
+| `pos_sale_id` | Set for a Pharmacy-edition till sale's pickup; `null` for a full-edition in-house pharmacy pickup. |
+| `void_reason` | Present only when `status` is `voided`. |
+
+### Full-edition pickups vs. Pharmacy-edition till pickups
+
+A full-edition clinic's in-house pharmacy hands out one or more **prescriptions**: each line in `lines` carries a
+`prescription_id`. A Pharmacy-edition clinic's **till sale** can also create a pickup — then `pos_sale_id` is set on
+the pickup, and each line carries `pos_sale_item_id` (the sale's own line) instead of a `prescription_id`. Never both
+on the same line. Treat `lines` as a list of "things handed over" and read whichever id is present; do not assume
+every pickup is prescription-shaped.
+
+## List pickups
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/prescription-pickups?patient_id=PATIENT_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+| Query parameter | Meaning |
+| --- | --- |
+| `patient_id` | **Required.** The patient to list for. |
+| `status` | `awaiting`, `remote_pending`, `collected` or `voided`. Omit to see every status. |
+| `since` | RFC 3339 timestamp: only pickups changed since then. |
+| `limit`, `starting_after` | See [Pagination](/pagination). |
+
+## Submit a collection
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/prescription-pickups/PICKUP_ID/collection" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Idempotency-Key: 7c9e6679-7425-40de-944b-e07fc1f90ae7" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "collected_by": "patient",
+        "counselling": "accepted",
+        "answers": [{ "id": "allergy_check", "answer": "no" }],
+        "signature_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUAwPN6NyMAAAAASUVORK5CYII=",
+        "client_reference": "kiosk-2026-10-01-0007"
+      }'
+```
+
+| Field | Notes |
+| --- | --- |
+| `collected_by` | Required: `patient` or `agent`. |
+| `agent_name`, `agent_relationship` | Required together when `collected_by` is `agent`. |
+| `counselling` | Required: `accepted` or `declined`. |
+| `answers` | A list of `{ "id": "…", "answer": "yes" \| "no" }` for the clinic's own questions. Only the ids the clinic currently asks are accepted. |
+| `signature_data` | **Required.** A PNG image as a `data:image/png;base64,…` URL, under 64 KB — the signature your own kiosk captured. The clinic's single recording path cannot mark a pickup collected without one, so a request without it is refused with `400 invalid_request` rather than left unresolvable in review. |
+| `line_ids` | Optional. The specific lines to hand over, for a **partial pickup** — omit to hand over every line on this pickup. The rest move to a new, still-`awaiting` pickup; nothing is lost. |
+| `privacy_ack` | Optional, and only meaningful when the clinic's privacy notice is due — `GET` the pickup's clinic settings or simply try without it first; a due acknowledgment that is missing is refused by the reviewing clinician's own screen, not silently skipped. |
+| `client_reference` | Optional. Your own id for the item. Reusing one for a different item returns `409 client_reference_conflict`. |
+| `origin_assistant_name` | Optional. The name of your system. The clinic's reviewer sees it as the sender. |
+
+**`Idempotency-Key` is required.** Sending the same key again returns the first answer and does not create a second
+submission. See [Retries and duplicates](/retries-and-idempotency).
+
+### The answer is 202, not 200
+
+```http
+HTTP/1.1 202 Accepted
+Location: /v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID
+```
+
+The body is the submission, showing `"review_status": "pending"`. The pickup is **not** collected yet. **Read the
+body, not the status code** — if the clinic has chosen to accept pickup collections from your key automatically, the
+same `202` already shows `"review_status": "confirmed"` and `"accepted_automatically": true`. See
+[Automatic acceptance](/automatic-acceptance).
+
+## After you send one
+
+```bash
+curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/submissions/SUBMISSION_ID" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…"
+```
+
+- `pending`: waiting for a person at the clinic. The pickup still reads `status: "awaiting"`.
+- `confirmed`: a clinician (or the clinic's automatic acceptance) recorded it, through the same single path the
+  pharmacy counter's own screen uses. `result_record_id` is the pickup, which now reads `status: "collected"`.
+- `rejected`: declined, with the reason — for example, the pickup was already collected by the time it was reviewed.
+- `withdrawn`: you took it back while it was pending.
+
+A submission's own `payload` **never carries the signature image**, even for your own submission — `has_signature`
+is a sibling field on the submission, just as it is on the pickup. Only the key or organization that sent a
+submission can read it. A submission that has been decided cannot be changed (`409 submission_not_pending`).
+
+## What is never returned
+
+- **The signature image.** No route under this API, at any permission, returns the bytes of a signature. `has_signature` is the only signal you ever get.
+- **`agent_name`, to an organization.** A clinic-owned key sees who collected on an agent's behalf; a connected organization sees only `agent_relationship`, never the name.
+
+## A worked example
+
+1. A patient's pharmacy order is dispensed at the clinic. The clinic's system creates a pickup, `status: "awaiting"`.
+2. Your kiosk captures a signature when the patient collects. You send `POST …/prescription-pickups/PICKUP_ID/collection` with `collected_by: "patient"`, the signature and an `Idempotency-Key`. The answer is `202`.
+3. A clinician reviews it in **Outside submissions** and selects **Accept** — the same acceptance ClinikEHR's own staff review screen uses for any outside submission.
+4. You read the submission again: `confirmed`, with `result_record_id` pointing at the pickup.
+5. `GET …/prescription-pickups/PICKUP_ID` now shows `status: "collected"`, `has_signature: true`, and the answers you sent with their exact wording.
+
+A test key reaches only your workspace's sandbox, which holds invented patients, so you can try the requests above
+without touching a real pickup.

@@ -40,6 +40,25 @@ Two things appear in several responses, so learn them once:
 - **`band`** is `out`, `low`, `in_stock` or `unknown`. `unknown` means the pharmacy's own till has not reported recently enough to trust, so we say so rather than show a stale answer. Show it as its own state, never as `out`. See [Stock bands](/stock-bands#the-one-place-a-band-is-unknown-network-search).
 - **`as_of`** is when that band was last known to be true. Show it. A band without its age looks fresher than it is.
 
+## Bring pharmacies to the network: your referral link
+
+Every **verified** workspace has its own referral link in the developer portal, under **Referrals**. Share it with a pharmacy:
+when the pharmacy signs up through it, we remember that you introduced it. Admins and owners see the link; a workspace
+that is not verified yet is told that verification comes first.
+
+A referral gives you nothing on its own: no access, no connection and no listing. The pharmacy decides. At first run it
+sees your listing request pre-filled, with **Approve** and **Not now** as equal choices, and a **Not now** leaves a quiet
+reminder in its settings.
+
+The **Referrals** page lists the pharmacies you referred by **status only**: signed up, subscribed or listed. A listed
+pharmacy also shows a **coverage** band (`Not started`, `Partial`, `Good` or `Strong`), which says how much of its
+catalogue is linked to the shared medicine index. You never see stock, sales or customers, and a pharmacy that declined to
+be listed shows as signed up, nothing more.
+
+**The reward.** A referred pharmacy that becomes a paying customer within 90 days of signing up connects to your workspace
+**free for 6 months**, counted from its first payment. During those months it is not counted in your connected-clinic
+usage, and the **Referrals** page shows **Free until** and the date. See [Usage and billing](/usage-and-billing).
+
 ## List listed pharmacies
 
 ```
@@ -75,7 +94,8 @@ curl "https://api.clinikehr.com/v1/listings/pharmacies?limit=25" \
       "hours": {
         "monday": { "open": "09:00", "close": "18:00", "is_closed": false }
       },
-      "open_now": true
+      "open_now": true,
+      "store_url": "https://shop.examplepharmacy.example"
     }
   ],
   "has_more": false,
@@ -90,6 +110,7 @@ curl "https://api.clinikehr.com/v1/listings/pharmacies?limit=25" \
 | `pin` | `{ "lat", "lng" }`, a point the pharmacy placed on a map, or `null` if it has not placed one. Without a pin a pharmacy cannot be ranked by distance. |
 | `hours` | The pharmacy's opening hours, in the shape the pharmacy recorded them: one entry per day with `open`, `close` and `is_closed`. `null` when none are recorded. |
 | `open_now` | `true` or `false` from the pharmacy's own hours, or `null` when its hours are missing or unreadable for today. It is never a guess. |
+| `store_url` | The pharmacy's online store, or `null`. See [Store links](#store-links). |
 
 ## Search for a medicine
 
@@ -129,7 +150,8 @@ curl -X POST "https://api.clinikehr.com/v1/listings/search" \
       "match": "text",
       "band": "in_stock",
       "distance_km": 1.2,
-      "as_of": "2026-10-01T10:00:00Z"
+      "as_of": "2026-10-01T10:00:00Z",
+      "store_url": "https://shop.examplepharmacy.example/products/example-paracetamol-500mg-ab12"
     }
   ]
 }
@@ -143,6 +165,7 @@ curl -X POST "https://api.clinikehr.com/v1/listings/search" \
 | `band` | `out`, `low`, `in_stock` or `unknown`. |
 | `distance_km` | Distance from your `near` point, or `null` when you gave no `near` or the pharmacy has no pin. |
 | `as_of` | When the band was last known to be true. |
+| `store_url` | This product's page in the pharmacy's online store, or `null`. See [Store links](#store-links). |
 
 - With `near`, nearest pharmacies come first. A pharmacy with no pin is **not removed** by `radius_km`: it has `distance_km: null` and comes last.
 - A test key matches identifiers `gtin` and `nafdac`, and names (`q`). `ndc`, `rxcui` and `partner` identifiers find nothing in the sandbox and return an empty `data` list.
@@ -208,13 +231,16 @@ curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/listing/items?limit=25
       "item_id": "99999999-aaaa-4bbb-8ccc-dddddddddddd",
       "name": "Example Paracetamol 500 mg Tablets",
       "band": "in_stock",
-      "as_of": "2026-10-01T10:00:00Z"
+      "as_of": "2026-10-01T10:00:00Z",
+      "store_url": null
     }
   ],
   "has_more": false,
   "next_cursor": null
 }
 ```
+
+Each item carries `store_url` as on a search result: this product's page in the pharmacy's online store, or `null`.
 
 A test key reaches only your sandbox's own pharmacy: the `clinic_id` that [`GET /v1/me`](/authentication) reports.
 
@@ -249,7 +275,8 @@ curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/listing/profile" \
   },
   "price_opt_in": false,
   "profile_completed_at": "2026-10-01T10:00:00Z",
-  "updated_at": "2026-10-01T10:00:00Z"
+  "updated_at": "2026-10-01T10:00:00Z",
+  "store_url": "https://shop.examplepharmacy.example"
 }
 ```
 
@@ -260,6 +287,20 @@ It has the fields in the table above, except `open_now`, plus:
 | `price_opt_in` | Whether the pharmacy has separately agreed to share prices. `false` unless it chose otherwise. No listing route returns a price today. |
 | `profile_completed_at` | When the pharmacy finished setting up its listing, or `null`. |
 | `updated_at` | When the profile last changed, or `null`. |
+
+## Store links
+
+Pharmacies can run an online store. `store_url` is how you send a person to it, and it is `null` unless a link is safe to
+show. A pharmacy-level `store_url` (the directory and the profile) is the store's front page. A product-level `store_url`
+(a search result or an item) is that product's own page.
+
+A link is returned only when **all** of these hold:
+
+- the pharmacy has switched its store on, and the store can take payment;
+- the pharmacy is not on the listing-only plan, and keeps its stock in ClinikEHR (a pharmacy that sends a stock report from another system does not advertise a store, because the store sells from ClinikEHR's own stock);
+- for a product link, the item is listed and not withheld by the pharmacy, and an active, public store product is built on exactly that item.
+
+If the pharmacy has connected its own web address, the link uses it. Treat the link as an opaque address: show it and open it, and do not build one yourself. A product with no link is not a mistake: it is simply not for sale online. A test key always returns `null`.
 
 ## Things to know
 

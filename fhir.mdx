@@ -95,6 +95,7 @@ it reads `confirmed`. It is never presented as clinician-confirmed before then. 
 - Coverage and payer `Organization` are read-only in FHIR: a FHIR body on `POST` or `PATCH` is refused with an `OperationOutcome`, so add or change a coverage in the plain JSON shape. See [Insurance](/insurance).
 - **Practitioner is read-only.** The provider directory cannot be written by any request, in any shape. See [Providers](/providers). `PractitionerRole` is not available yet: a clinician's role and specialties are carried on the `Practitioner`.
 - **Outside care providers have no FHIR shape.** They are JSON only: a FHIR body on those routes is refused, and `Accept: application/fhir+json` is answered in plain JSON. See [Outside care providers](/care-providers).
+- **Prescription pickups and outreach events have no FHIR shape.** They are JSON only — a FHIR `MedicationDispense` mapping is deliberately out of scope. A FHIR body on those routes is refused, and `Accept: application/fhir+json` is answered in plain JSON. See [Prescription pickups](/prescription-pickups) and [Outreach events](/outreach-events).
 - No `Location`, `Slot`, `Schedule`, or `HealthcareService`
   create/update through FHIR — read/write for those stays on their own plain endpoints as they
   ship.

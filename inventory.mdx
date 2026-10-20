@@ -246,6 +246,48 @@ curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/lots
 
 Leaving `reason` out is a `400` that names the field; a blank reason is refused with `code: "reason_required"`. A controlled drug is refused with `403` and `code: "controlled_drug_not_api_movable"` — an API key has no witness to countersign, so the clinic records that loss itself. A lot with part of its stock reserved is refused with `409` and `code: "insufficient_stock"` until the reservation is released.
 
+## Send a stock report
+
+```
+POST /v1/clinics/{clinic_id}/inventory/external-stock/batches
+GET  /v1/clinics/{clinic_id}/inventory/external-stock/batches/{batch_id}
+```
+
+For a pharmacy that sells through **another system**. The pharmacy's owner first switches Settings → API access → **Stock source** to "Another system's stock report"; your system then sends that system's stock as a report, and the pharmacy's listings show it. Nothing is added to the pharmacy's own ledger: a report only sets what listings say.
+
+**Permission.** The key needs `inventory.external_stock:write`, the narrow permission for exactly this. It is available on **every paid pharmacy plan, including the Listing plan**, and it cannot read, adjust or receive stock. A key that already holds `inventory.stock:write` (Team and above) works too, and `GET` also accepts `inventory.stock:read`. Clinic keys only: an organization never sends a pharmacy's stock.
+
+| Body field | Notes |
+| --- | --- |
+| `batch_id` | **Required.** A UUID you generate. It is the idempotency key: sending the same one again returns the stored result and does nothing twice. |
+| `as_of` | **Required.** When your system produced the report. We clamp it to the last 30 days. |
+| `feed_source` | **Required.** A short label for the system sending it. |
+| `rows` | **Required.** Up to 5,000 rows. Each has `identifiers` (at least one `{ "system", "value" }`, the same systems as [search](/pharmacy-listings#search-for-a-medicine)) and at least one of `quantity` (a number, not negative) or `band` (`in_stock`, `low`, `out`). |
+
+```bash
+curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/external-stock/batches" \
+  -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "batch_id": "6f1d3c52-8a1e-4b7e-9f0d-0c2f5e3b7a11",
+        "as_of": "2026-10-13T08:00:00Z",
+        "feed_source": "Example POS nightly export",
+        "rows": [
+          { "identifiers": [{ "system": "gtin", "value": "5000000000000" }], "quantity": 120 },
+          { "identifiers": [{ "system": "nafdac", "value": "A4-0000" }], "band": "low" }
+        ]
+      }'
+```
+
+```json
+{ "ok": true, "batch_id": "6f1d3c52-8a1e-4b7e-9f0d-0c2f5e3b7a11", "item_count": 2, "matched_count": 1, "unmatched_count": 1 }
+```
+
+- A row that matches none of the pharmacy's products is **counted as unmatched and ignored**. Nothing is guessed.
+- A report is applied whole or not at all. One with an unreadable row (`invalid_rows`), far fewer products than the last accepted report (`suspicious_shrink`) or no rows (`empty`) is refused with `409 batch_rejected` and nothing is saved.
+- A pharmacy that is not in "Another system's stock report" mode is refused with `409 external_stock_mode_required`.
+- A report older than the pharmacy's freshness window makes its products read as `unknown` in listings. Send them regularly.
+
 ## What's never in an inventory response
 
 No inventory endpoint returns cost price, vendor information, margins, or anything about a specific customer or sale. This release exposes only what a clinic explicitly permits under Availability, Catalogue, or Stock levels — nothing else rides along.

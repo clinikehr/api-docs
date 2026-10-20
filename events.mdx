@@ -77,6 +77,8 @@ curl "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/events?after_seq=42&li
 | `inventory.item.updated` | `id` (the item) | `inventory.items:read` |
 | `insurance.claim.submitted`, `insurance.claim.adjudicated`, `insurance.claim.paid` | `claim_id`, `claim_number`, `insurance_company_id`, `status`, `hmo_status`, `currency`, `amount_billed`, `amount_approved`, `paid_amount`, `written_off_amount` | `insurance.claims:read` |
 | `insurance.pa.requested`, `insurance.pa.decided` | `pa_id`, `request_number`, `insurance_company_id`, `status`, `estimated_cost`, `approved_amount` | `insurance.pa:read` |
+| `prescription_pickup.collected` | `id` (the pickup) | `pickups:read` |
+| `outreach_event.attendee_checked_in` | `id` (the attendee) | `outreach:read` |
 
 `listing.freshness.changed` means the clinic's till has stopped (or started again) reporting stock. It is sent once
 per clinic when that changes, not once per item. When it goes stale, bands for that clinic's items are `unknown` until

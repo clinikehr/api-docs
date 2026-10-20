@@ -78,7 +78,8 @@ Every error response is `application/problem+json` — a small, consistent JSON 
 | `reason_required` | `400` | A lot write-off needs a reason, and the one sent was blank. See [Inventory](/inventory). |
 | `insufficient_stock` | `409` | There is not enough usable stock for this movement. See [Inventory](/inventory). |
 | `expired_stock_not_transferable` | `409` | Only usable stock can be transferred; the expired part must be written off by the clinic instead. See [Inventory](/inventory). |
-| `batch_rejected` | `409` | An external stock batch was rejected and nothing from it was saved. See [Inventory](/inventory). |
+| `batch_rejected` | `409` | An external stock batch was rejected and nothing from it was saved. `detail` names the reason: `invalid_rows` (a row had no identifier, no stock figure, or a value we could not read), `suspicious_shrink` or `empty`. See [Inventory](/inventory). |
+| `external_stock_mode_required` | `409` | A stock report was sent to a pharmacy that is not set to take one from another system. The owner switches it on in Settings. Nothing was saved. See [Send a stock report](/inventory#send-a-stock-report). |
 | `already_imported` | `409` | A file with exactly this content was already imported for this clinic. See [Patients](/patients). |
 | `file_expired` | `410` | The uploaded import file is no longer held. Upload it again to start a new import. See [Patients](/patients). |
 | `payload_too_large` | `413` | The import body is larger than 10 MiB. See [Patients](/patients). |
