@@ -9,6 +9,18 @@ What a developer can build against changes here, newest first. Every entry is so
 
 Tags: **API** (a resource, scope, or endpoint) · **Sandbox** (test keys and synthetic data) · **Portal** (the developer dashboard at [developer.clinikehr.com](https://developer.clinikehr.com)) · **Webhooks** (endpoints, deliveries and the change feed) · **Billing** (workspace plans and usage).
 
+<Update label="October 23, 2026" tags={["API"]} description="TypeScript and Python clients 0.3.0">
+  ## The clients know about controlled items and pickup lines
+
+  Version 0.3.0 of both clients adds the fields from the October 20 releases to their types, so your editor knows about them and checks them:
+
+  - **`is_controlled`** on inventory items, read-only. See [Inventory](/inventory#list-catalogue-items).
+  - **`line_id`** on Pharmacy-edition pickup lines, the value you send in `line_ids` to collect part of a pickup. See [Prescription pickups](/prescription-pickups).
+  - **`signature_data` is optional** on a pickup collection, matching the clinic's **Require a signature at pickup** setting. A clinic that requires one still refuses a collection without it (`400 signature_required`).
+
+  Code written for 0.2.0 keeps working. Update with `npm install @clinikehr/api@0.3.0` or `pip install clinikehr==0.3.0`.
+</Update>
+
 <Update label="October 20, 2026" tags={["API"]} description="Inventory">
   ## See which inventory items a clinic has marked as controlled
 
