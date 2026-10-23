@@ -4,11 +4,6 @@ description: "Read who collected a prescription, when, and whether a signature i
 icon: "/images/icons/prescription-bottle-medical.svg"
 ---
 
-<Warning>
-  **Not yet available.** Prescription pickups are not yet live on `api.clinikehr.com`. This page describes the
-  routes exactly as they will work once they ship — check the [changelog](/changelog) before building against them.
-</Warning>
-
 A **prescription pickup** is one handover at the pharmacy counter: who collected a patient's dispensed medicine,
 whether counselling was offered, the clinic's own yes/no questions and their answers, and whether a signature is on
 file. Reading is immediate. **Submitting a collection is different** — exactly like [Conditions](/conditions),
@@ -46,7 +41,11 @@ your key is allowed to see. A patient the clinic has restricted, or a pickup tha
   "has_signature": true,
   "privacy_acknowledged_version": 3,
   "lines": [
-    { "prescription_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd", "pos_sale_item_id": null }
+    {
+      "line_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+      "prescription_id": "c3f1b2a4-3333-4c4d-9e5f-23456789abcd",
+      "pos_sale_item_id": null
+    }
   ],
   "outreach_event_id": null,
   "pos_sale_id": null,
@@ -66,9 +65,9 @@ your key is allowed to see. A patient the clinic has restricted, or a pickup tha
 | `agent_relationship` | The agent's relationship to the patient. Shown to everyone who can see the pickup. |
 | `counselling` | `accepted` or `declined`. `null` until collected. |
 | `answers` | The clinic's own yes/no questions, each with the **exact wording shown** when the answer was given — a clinic that edits a question later does not change what an earlier pickup recorded. |
-| `has_signature` | Whether a signature is on file. **The signature image itself is never returned by this API**, under any permission. |
+| `has_signature` | Whether a signature is on file. **The signature image itself is never returned by this API**, under any permission. A collected pickup can read `false` here: a clinic that has switched off **Require a signature** can record a handover without one, whether at the counter or through the API, and the pickup is then stored as unsigned. |
 | `privacy_acknowledged_version` | The version of the clinic's privacy notice the patient acknowledged for this pickup, or `null` when none was due. |
-| `lines` | The dispensed lines this pickup covers. Exactly one of `prescription_id` / `pos_sale_item_id` is set per line — see below. |
+| `lines` | The dispensed lines this pickup covers. Every line has a `line_id`; of `prescription_id` / `pos_sale_item_id` exactly one is set — see below. |
 | `outreach_event_id` | Set when this pickup happened at an [outreach event](/outreach-events). |
 | `pos_sale_id` | Set for a Pharmacy-edition till sale's pickup; `null` for a full-edition in-house pharmacy pickup. |
 | `void_reason` | Present only when `status` is `voided`. |
@@ -80,6 +79,17 @@ A full-edition clinic's in-house pharmacy hands out one or more **prescriptions*
 the pickup, and each line carries `pos_sale_item_id` (the sale's own line) instead of a `prescription_id`. Never both
 on the same line. Treat `lines` as a list of "things handed over" and read whichever id is present; do not assume
 every pickup is prescription-shaped.
+
+### Choosing lines: `line_id`
+
+Every line carries a **`line_id`**, and it is the only value `line_ids` accepts when you [collect part of a pickup](#submit-a-collection). For a prescription line `line_id` is the same value as `prescription_id`. For a till line it is the line's own id: a till line has no prescription, so its `prescription_id` is `null`, and **its `line_id` is not a prescription id** — it matches nothing in the prescriptions API. Do not send a `pos_sale_item_id` in `line_ids`; send the line's `line_id`.
+
+```json
+"lines": [
+  { "line_id": "7c1e0a52-…", "prescription_id": null, "pos_sale_item_id": "2d9b84f0-…" },
+  { "line_id": "b4a6c3d1-…", "prescription_id": null, "pos_sale_item_id": "91e5f7a3-…" }
+]
+```
 
 ## List pickups
 
@@ -117,8 +127,8 @@ curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/prescription-p
 | `agent_name`, `agent_relationship` | Required together when `collected_by` is `agent`. |
 | `counselling` | Required: `accepted` or `declined`. |
 | `answers` | A list of `{ "id": "…", "answer": "yes" \| "no" }` for the clinic's own questions. Only the ids the clinic currently asks are accepted. |
-| `signature_data` | **Required.** A PNG image as a `data:image/png;base64,…` URL, under 64 KB — the signature your own kiosk captured. The clinic's single recording path cannot mark a pickup collected without one, so a request without it is refused with `400 invalid_request` rather than left unresolvable in review. |
-| `line_ids` | Optional. The specific lines to hand over, for a **partial pickup** — omit to hand over every line on this pickup. The rest move to a new, still-`awaiting` pickup; nothing is lost. |
+| `signature_data` | **Follows the clinic's own setting, "Require a signature at pickup", which the server reads.** A PNG image as a `data:image/png;base64,…` URL, under 64 KB — the signature your own kiosk captured. When the clinic requires a signature, a request without one is refused with `400 signature_required` and nothing is stored. When the clinic has switched it off, you may leave it out and the pickup is recorded unsigned (`has_signature: false`). A signature you do send is always checked. If the clinic turns the setting on after you send an unsigned request but before a clinician accepts it, the acceptance is refused and the request stays pending for the clinic to sort out. |
+| `line_ids` | Optional. The `line_id` of each line to hand over, for a **partial pickup** — omit to hand over every line on this pickup. This works for a Pharmacy-edition till pickup as well as a prescription pickup. The rest move to a new, still-`awaiting` pickup when the clinician accepts; nothing is lost. At least one, at most 50. A prescription id still works for a prescription line, because there it is the `line_id`. An id that is not a line of this pickup, or a list that is empty, is refused with `400 invalid_request` straight away. |
 | `privacy_ack` | Optional, and only meaningful when the clinic's privacy notice is due — `GET` the pickup's clinic settings or simply try without it first; a due acknowledgment that is missing is refused by the reviewing clinician's own screen, not silently skipped. |
 | `client_reference` | Optional. Your own id for the item. Reusing one for a different item returns `409 client_reference_conflict`. |
 | `origin_assistant_name` | Optional. The name of your system. The clinic's reviewer sees it as the sender. |
@@ -163,7 +173,7 @@ submission can read it. A submission that has been decided cannot be changed (`4
 ## A worked example
 
 1. A patient's pharmacy order is dispensed at the clinic. The clinic's system creates a pickup, `status: "awaiting"`.
-2. Your kiosk captures a signature when the patient collects. You send `POST …/prescription-pickups/PICKUP_ID/collection` with `collected_by: "patient"`, the signature and an `Idempotency-Key`. The answer is `202`.
+2. Your kiosk captures a signature when the patient collects (if the clinic requires one). You send `POST …/prescription-pickups/PICKUP_ID/collection` with `collected_by: "patient"`, the signature and an `Idempotency-Key`. The answer is `202`.
 3. A clinician reviews it in **Outside submissions** and selects **Accept** — the same acceptance ClinikEHR's own staff review screen uses for any outside submission.
 4. You read the submission again: `confirmed`, with `result_record_id` pointing at the pickup.
 5. `GET …/prescription-pickups/PICKUP_ID` now shows `status: "collected"`, `has_signature: true`, and the answers you sent with their exact wording.

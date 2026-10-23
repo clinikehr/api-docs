@@ -9,6 +9,51 @@ What a developer can build against changes here, newest first. Every entry is so
 
 Tags: **API** (a resource, scope, or endpoint) · **Sandbox** (test keys and synthetic data) · **Portal** (the developer dashboard at [developer.clinikehr.com](https://developer.clinikehr.com)) · **Webhooks** (endpoints, deliveries and the change feed) · **Billing** (workspace plans and usage).
 
+<Update label="October 20, 2026" tags={["API"]} description="Inventory">
+  ## See which inventory items a clinic has marked as controlled
+
+  Inventory items now carry a read-only `is_controlled` flag, so your integration can tell a controlled medicine from an ordinary one without keeping its own list.
+
+  - **`is_controlled` on every item** in [the item list and the single item](/inventory#list-catalogue-items). It is `true` when the clinic marked the item as a controlled medicine.
+  - **Read-only.** You cannot set it through the API; it is changed in the ClinikEHR app by staff the clinic has allowed to do so. A clinic that has marked nothing reports `false` everywhere.
+
+</Update>
+
+<Update label="October 20, 2026" tags={["API"]} description="Prescription pickups">
+  ## Collect part of a till pickup, and know which line is which
+
+  A Pharmacy-edition till pickup could only be collected whole, because its lines carried no value you could send back to pick one. Now they do.
+
+  - **Every pickup line has a `line_id`.** Send the `line_id` values you want to hand over in `line_ids` on [the collection request](/prescription-pickups#submit-a-collection); the lines you leave out stay on a new awaiting pickup. For a prescription line `line_id` equals its `prescription_id`, so requests you already send keep working. For a till line it is the line's own id, and it is not a prescription id.
+  - **A list that names the wrong line is refused straight away** with `400 invalid_request`: an empty list, an id that is not a line of this pickup, or one that is not a UUID. Before, such a request was accepted and then sat in review without ever being completable.
+  - **The signature follows the clinic's setting.** `signature_data` on the collection request is now optional when the clinic has switched off **Require a signature at pickup**: leave it out and the pickup is recorded unsigned, reading `has_signature: false`. When the clinic requires a signature, a request without one is refused with `400 signature_required` (see [Errors](/errors)). A signature you send is always checked.
+</Update>
+
+<Update label="October 19, 2026" tags={["API","Webhooks"]} description="Prescription pickups · Outreach events">
+  ## Read prescription pickups and outreach events, and submit them for review
+
+  Two record types a pharmacy or an outreach team works with every day are now in the API.
+
+  - **[Prescription pickups](/prescription-pickups):** who collected a dispensed prescription, whether counselling was offered, the clinic's own questions and answers, and whether a signature is on file (never the image itself). Read them with `pickups:read`; submit a collection for a clinician to review with `pickups:write`.
+  - **[Outreach events](/outreach-events):** a clinic's screening-day events, their stations, and who is checked in. Read them with `outreach:read`; check an existing patient in, for a clinician to review, with `outreach:write`.
+  - Both need the same patient-data access as the other patient records. A submission's `resource_type` can now be `prescription_pickup_collection` or `outreach_checkin`, and a submission says whether a signature came with it (`has_signature`).
+  - New webhook events: `prescription_pickup.collected` and `outreach_event.attendee_checked_in`.
+</Update>
+
+<Update label="October 19, 2026" tags={["API"]} description="Stock reports">
+  ## A narrow permission for stock reports, and stricter stock reports
+
+  - **`inventory.external_stock:write`** lets a key send a pharmacy's [stock report](/inventory#send-a-stock-report) from another system, and read back the status of the reports it sent, and nothing else. It is available on every paid pharmacy plan, including the Listing plan. A key with `inventory.stock:write` still works.
+  - **A stock report to a pharmacy that is not set up to receive one is now refused** with `409 external_stock_mode_required`. It used to be accepted and quietly ignored.
+  - **A report with an unreadable row is refused as a whole**, with nothing written: a row with no identifier, a negative quantity, or neither a quantity nor a band. Fix the rows the error lists and send the report again. See [Errors](/errors).
+</Update>
+
+<Update label="October 19, 2026" tags={["API"]} description="Pharmacy listings">
+  ## Pharmacy listings show the online store
+
+  A [pharmacy listing](/pharmacy-listings) now carries `store_url`: the address of the pharmacy's online store, when it runs one.
+</Update>
+
 <Update label="October 12, 2026" tags={["API"]} description="Python client 0.1.0">
   ## The Python client is on PyPI
 

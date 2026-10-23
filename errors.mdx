@@ -64,6 +64,7 @@ Every error response is `application/problem+json` — a small, consistent JSON 
 | `template_not_found` | `400` | The `note_type` or `custom_template_id` is not a template this clinic has. See [Notes](/notes). |
 | `too_many_rows` | `400` | An import held more than 100 rows. Split it and import it in parts. See [Patients](/patients). |
 | `limit_exceeded` | `400` | A stock change is larger than the limit the clinic has set for one change. See [Inventory](/inventory). |
+| `signature_required` | `400` | The clinic requires a signature to record a pickup (its **Require a signature at pickup** setting is on) and the collection request carried no `signature_data`. Send the signature image. See [Prescription pickups](/prescription-pickups). |
 | `expiry_required` | `400` | Received stock needs an expiry date. See [Inventory](/inventory). |
 | `expiry_mismatch` | `400` | That lot already exists with a different expiry date, which a top-up cannot change. See [Inventory](/inventory). |
 | `hazard_location_required` | `400` | This item can only be moved to a location rated for it. See [Inventory](/inventory). |

@@ -58,6 +58,7 @@ Each item in the response:
   "unit_of_measure": "capsule",
   "is_active": true,
   "archived_at": null,
+  "is_controlled": false,
   "identifiers": [
     { "system": "gtin", "value": "6001234567890" }
   ],
@@ -69,6 +70,8 @@ Each item in the response:
 `identifiers` lists every code recorded for the item — a barcode (`gtin`) or a national drug registration number (`nafdac`) — and appears **only where the clinic's own record has it**. Nothing is inferred or guessed on your behalf: an item with no barcode on file simply has no `gtin` entry.
 
 `is_active` is `false` and `archived_at` holds the time while an item is archived; both go back to normal when it is restored.
+
+`is_controlled` is `true` when the clinic has marked the item as a controlled medicine. It is read-only: it can only be changed in the ClinikEHR app, by staff the clinic has allowed to mark medicines as controlled. A clinic that has not marked anything reports `false` for every item, so treat `false` as "not marked", not as a statement about the medicine's legal status.
 
 `retail_price` is `null` when the clinic hasn't set a price for the item — never a fabricated `0`.
 

@@ -8,10 +8,6 @@ import { Availability } from '/snippets/availability.mdx';
 
 The ClinikEHR API lets software you build talk to ClinikEHR, the records system clinics, pharmacies and laboratories use. Your program sends an ordinary web request, and gets back plain JSON: a clinic's stock, a patient's allergies, an appointment, and more. You can also send information back for the clinic to review.
 
-<Info>
-  **This API is under active development.** The sections below say, resource by resource, what you can call **today**. A page that describes something not yet available says so at the top, in its own banner — nothing on this site describes a defect as if it were a feature.
-</Info>
-
 ## How it works
 
 <Steps>
@@ -94,8 +90,8 @@ Anything about a patient (records, appointments, notes, allergies, medicines, re
     - **Providers**: the clinic's clinical staff directory (name, role, specialty, NPI and licence), which is read-only and holds no contact details. See [Providers](/providers).
     - **Outside care providers**: the doctors, referrers and specialists a patient names, which you can read and add, and change or remove when your app added them. They need the same patient-data access as the records below. See [Outside care providers](/care-providers).
     - **Encounters**: a patient's visits as the clinic documents them, which you can read, and open as a draft visit for a clinician to complete. No clinical text is returned, and nothing is ordered, billed or signed. They need the same patient-data access as the records below. See [Encounters](/encounters).
-    - **Prescription pickups** *(not yet live — see the page's own banner)*: who collected a dispensed prescription, counselling, the clinic's own questions and answers, and whether a signature is on file (never the image itself), which you will be able to read and submit a collection for a clinician to review. They need the same patient-data access as the records below. See [Prescription pickups](/prescription-pickups).
-    - **Outreach events** *(not yet live — see the page's own banner)*: a clinic's screening-day events, their stations, and who is checked in, which you will be able to read and check an existing patient in to for a clinician to review. They need the same patient-data access as the records below. See [Outreach events](/outreach-events).
+    - **Prescription pickups**: who collected a dispensed prescription, counselling, the clinic's own questions and answers, and whether a signature is on file (never the image itself), which you can read, and submit a collection for a clinician to review. They need the same patient-data access as the records below. See [Prescription pickups](/prescription-pickups).
+    - **Outreach events**: a clinic's screening-day events, their stations, and who is checked in, which you can read, and check an existing patient in to for a clinician to review. They need the same patient-data access as the records below. See [Outreach events](/outreach-events).
     - **Network search** — finding a listed pharmacy, and checking its availability band, without a direct connection to it yet — see [Connections](/connections#network-search).
     - **Connections** — an organization requesting access to a clinic by one-time code, and the clinic narrowing or revoking what it granted — see [Connections](/connections).
     - **Workspaces** — signing up for a developer portal account, verifying it, and using your sandbox with a test key before anything is live.

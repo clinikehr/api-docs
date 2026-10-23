@@ -211,19 +211,19 @@ It asks for the next page only when you have used up the current one, and stops 
 
 ## Using it from async code
 
-In version 0.1.0 use the synchronous `sync_detailed` calls. The `asyncio_detailed` variants of the generated functions
-are not usable yet: they fail before sending anything. In an async program, run the synchronous call in a worker thread
-so it does not block your event loop:
+From version 0.1.1 every generated function has an `asyncio_detailed` variant you can await:
 
 ```python
 import asyncio
 
 async def main():
-    me = clinikehr.raise_for_response(await asyncio.to_thread(get_me.sync_detailed, client=client))
+    me = clinikehr.raise_for_response(await get_me.asyncio_detailed(client=client))
     print(me.environment.value)
 
 asyncio.run(main())
 ```
+
+Version 0.1.0 could only make synchronous calls; upgrade if you are still on it.
 
 ## FHIR R4
 
