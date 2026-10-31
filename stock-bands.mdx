@@ -13,13 +13,13 @@ item is worth asking about right now, without exposing a pharmacy's exact stock 
 POST /v1/clinics/{clinic_id}/inventory/availability
 ```
 
-Requires `inventory.availability:read`. Takes up to 100 item identifiers in one request.
+Requires `inventory.availability:read`. Takes up to 100 item identifiers in one request. A `gtin` value must be a valid barcode number: 8, 12, 13 or 14 digits, digits only, with a correct GS1 check digit. Anything else is refused with `400 invalid_gtin`, and the answer names the field and the value.
 
 ```bash
 curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/availability" \
   -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
   -H "Content-Type: application/json" \
-  -d '{"items":[{"system":"gtin","value":"6001234567890"}]}'
+  -d '{"items":[{"system":"gtin","value":"6001234567899"}]}'
 ```
 
 ```json

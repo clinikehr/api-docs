@@ -60,7 +60,7 @@ Each item in the response:
   "archived_at": null,
   "is_controlled": false,
   "identifiers": [
-    { "system": "gtin", "value": "6001234567890" }
+    { "system": "gtin", "value": "6001234567899" }
   ],
   "retail_price": { "amount": "1200.00", "currency": "NGN" },
   "updated_at": "2026-09-20T10:15:00Z"
@@ -68,6 +68,8 @@ Each item in the response:
 ```
 
 `identifiers` lists every code recorded for the item — a barcode (`gtin`) or a national drug registration number (`nafdac`) — and appears **only where the clinic's own record has it**. Nothing is inferred or guessed on your behalf: an item with no barcode on file simply has no `gtin` entry.
+
+When you create an item, its `upc` (the barcode) must be a valid GTIN. When you update one, only a **changed** `upc` is checked: sending back the value the item already holds is accepted even if it is not a valid GTIN, so an item you read can be written back as it is. A new or different `upc` that is not a valid GTIN is refused with `400 invalid_gtin`. To compare, the API reads the item's current value with your key, so a key without `inventory.items:read` cannot send an unchanged invalid value, and that read counts toward your rate limit (if it is refused, for example when you are rate limited, you get that answer instead of `invalid_gtin`). The `barcode` filter when you list items is not checked: it matches exactly what is stored, so you can still find an item whose stored barcode is not a valid GTIN. `null` clears the barcode.
 
 `is_active` is `false` and `archived_at` holds the time while an item is archived; both go back to normal when it is restored.
 
@@ -89,7 +91,7 @@ Requires `inventory.items:read`. Same fields as one entry of the list above. An 
 POST /v1/clinics/{clinic_id}/inventory/availability
 ```
 
-Requires `inventory.availability:read`. Checks up to **100 items** in one request — by their ID, or by any identifier you already hold (a barcode, for example) — and returns a band for each, never an exact number.
+Requires `inventory.availability:read`. Checks up to **100 items** in one request — by their ID, or by any identifier you already hold (a barcode, for example) — and returns a band for each, never an exact number. A `gtin` value must be a valid barcode number: 8, 12, 13 or 14 digits, digits only, with a correct GS1 check digit. Anything else is refused with `400 invalid_gtin`, and the answer names the field and the value.
 
 ```bash
 curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/availability" \
@@ -98,7 +100,7 @@ curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/avai
   -d '{
         "items": [
           { "item_id": "item_01example" },
-          { "system": "gtin", "value": "6001234567890" }
+          { "system": "gtin", "value": "6001234567899" }
         ]
       }'
 ```
@@ -265,7 +267,7 @@ For a pharmacy that sells through **another system**. The pharmacy's owner first
 | `batch_id` | **Required.** A UUID you generate. It is the idempotency key: sending the same one again returns the stored result and does nothing twice. |
 | `as_of` | **Required.** When your system produced the report. We clamp it to the last 30 days. |
 | `feed_source` | **Required.** A short label for the system sending it. |
-| `rows` | **Required.** Up to 5,000 rows. Each has `identifiers` (at least one `{ "system", "value" }`, the same systems as [search](/pharmacy-listings#search-for-a-medicine)) and at least one of `quantity` (a number, not negative) or `band` (`in_stock`, `low`, `out`). |
+| `rows` | **Required.** Up to 5,000 rows. Each has `identifiers` (at least one `{ "system", "value" }`, the same systems as [search](/pharmacy-listings#search-for-a-medicine)) and at least one of `quantity` (a number, not negative) or `band` (`in_stock`, `low`, `out`). A `gtin` identifier must be a valid GTIN, or the whole report is refused with `400 invalid_gtin` before anything is read or saved. |
 
 ```bash
 curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/external-stock/batches" \
@@ -276,7 +278,7 @@ curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/exte
         "as_of": "2026-10-13T08:00:00Z",
         "feed_source": "Example POS nightly export",
         "rows": [
-          { "identifiers": [{ "system": "gtin", "value": "5000000000000" }], "quantity": 120 },
+          { "identifiers": [{ "system": "gtin", "value": "5000000000005" }], "quantity": 120 },
           { "identifiers": [{ "system": "nafdac", "value": "A4-0000" }], "band": "low" }
         ]
       }'

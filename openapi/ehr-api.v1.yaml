@@ -70,6 +70,7 @@ components:
             - partner
         value:
           type: string
+          description: "A `gtin` value must be a valid GTIN-8, GTIN-12, GTIN-13 or GTIN-14: digits only, the right length and a correct GS1 check digit. A request that sends any other value is refused with 400 `invalid_gtin`, naming the field and the value. Values already stored are not changed and are returned as they are."
     Money:
       type: object
       required:
@@ -303,6 +304,7 @@ components:
                 - partner
             value:
               type: string
+              description: "A `gtin` value must be a valid GTIN-8, GTIN-12, GTIN-13 or GTIN-14: digits only, the right length and a correct GS1 check digit. A request that sends any other value is refused with 400 `invalid_gtin`, naming the field and the value. Values already stored are not changed and are returned as they are."
     AvailabilityRequest:
       type: object
       additionalProperties: false
@@ -595,6 +597,7 @@ components:
                 - partner
             value:
               type: string
+              description: "A `gtin` value must be a valid GTIN-8, GTIN-12, GTIN-13 or GTIN-14: digits only, the right length and a correct GS1 check digit. A request that sends any other value is refused with 400 `invalid_gtin`, naming the field and the value. Values already stored are not changed and are returned as they are."
         - type: object
           additionalProperties: false
           required:
@@ -3255,7 +3258,7 @@ components:
           type: string
         upc:
           type: string
-          description: gtin identifier.
+          description: "A `gtin` value must be a valid GTIN-8, GTIN-12, GTIN-13 or GTIN-14: digits only, the right length and a correct GS1 check digit. A request that sends any other value is refused with 400 `invalid_gtin`, naming the field and the value. Values already stored are not changed and are returned as they are. A blank value is treated as no code."
         nafdac_no:
           type: string
         ndc:
@@ -3301,6 +3304,7 @@ components:
           type:
             - string
             - "null"
+          description: "A `gtin` value must be a valid GTIN-8, GTIN-12, GTIN-13 or GTIN-14: digits only, the right length and a correct GS1 check digit. A request that sends any other value is refused with 400 `invalid_gtin`, naming the field and the value. Values already stored are not changed and are returned as they are. On update, a value equal to the one already stored is accepted even if it is not a valid GTIN; only a changed value is checked (the comparison reads the item with your key, which counts toward your rate limit; if that read is refused you get that refusal, not invalid_gtin). null clears the code."
         nafdac_no:
           type:
             - string
@@ -3438,6 +3442,7 @@ components:
           minLength: 1
         barcode:
           type: string
+          description: "A GTIN. A `gtin` value must be a valid GTIN-8, GTIN-12, GTIN-13 or GTIN-14: digits only, the right length and a correct GS1 check digit. A row with any other value is refused on its own (state `error`, reason starting `invalid_gtin`) and the other rows are still processed. Values already stored are not changed and are returned as they are."
         nafdac_no:
           type: string
         ndc:
@@ -3481,7 +3486,9 @@ components:
             - needs_review
             - unmatched
             - rejected
+            - error
             - null
+          description: "`error` means the row itself was refused and nothing was saved for it (an unknown field, a missing code, or a barcode that is not a valid GTIN)."
         reason:
           type:
             - string
@@ -3787,6 +3794,7 @@ components:
                   - partner
               code_value:
                 type: string
+                description: "When code_system is gtin, this must be a valid GTIN-8, GTIN-12, GTIN-13 or GTIN-14: digits only, the right length and a correct GS1 check digit. A request that sends any other value is refused with 400 `invalid_gtin`, naming the field and the value. Values already stored are not changed and are returned as they are."
               description:
                 type: string
               quantity:
@@ -7609,7 +7617,7 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
     BadRequest:
-      description: The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).
+      description: The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).
       content:
         application/problem+json:
           schema:
@@ -7835,6 +7843,7 @@ paths:
         - name: barcode
           in: query
           required: false
+          description: Exact match on the stored barcode. This filter is not checked as a GTIN, so a stored value that is not a valid GTIN can still be found.
           schema:
             type: string
         - name: category
@@ -7908,7 +7917,7 @@ paths:
                     is_active: true
                     identifiers:
                       - system: gtin
-                        value: "6001234567890"
+                        value: "6001234567899"
                     retail_price:
                       amount: "12.50"
                       currency: NGN
@@ -8016,7 +8025,7 @@ paths:
                 is_active: true
                 identifiers:
                   - system: gtin
-                    value: "6001234567890"
+                    value: "6001234567899"
                 retail_price:
                   amount: "12.50"
                   currency: NGN
@@ -8036,7 +8045,7 @@ paths:
       tags:
         - Inventory
       summary: Update a catalogue item
-      description: "**Permission:** `inventory.items:write` Update a catalogue item. Absent field ≠ JSON null. Idempotency-Key OPTIONAL — a PATCH is naturally idempotent."
+      description: "**Permission:** `inventory.items:write` Update a catalogue item. Absent field ≠ JSON null. Idempotency-Key OPTIONAL — a PATCH is naturally idempotent. Barcode (`upc`): only a changed value must be a valid GTIN. A `upc` equal, as stored, to the item's current value is accepted even when it is not a valid GTIN, so an item read from the API can be written back. A new or different `upc` that is not a valid GTIN is refused with 400 `invalid_gtin` and nothing is written. To make that comparison the API reads the item's current value with the caller's own key, so a key without `inventory.items:read` cannot send an unchanged invalid value."
       security:
         - ApiKey: []
       parameters:
@@ -8161,7 +8170,7 @@ paths:
               entries:
                 - item_id: 9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02
                 - system: gtin
-                  value: "6001234567890"
+                  value: "6001234567899"
       responses:
         "200":
           description: OK. One entry per requested item, in request order.

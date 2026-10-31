@@ -21,7 +21,13 @@ Inside `v1`, we can:
 - Add a new, optional request parameter.
 - Add a new error `code` for a situation that previously didn't have one.
 
+- Start refusing a value that could never have worked, for example a barcode with a wrong GS1 check digit. We announce it in the [changelog](/changelog) before or together with the release, and say which field and which value changed. Values you already stored are never altered or hidden by this.
+
 None of these should break an integration that ignores what it doesn't understand, which is why that's the one rule worth building in from day one: read the fields you need and leave the rest alone.
+
+### Stricter checks on values that never worked
+
+A stricter check applies only when the old value was always invalid, so nothing a working integration sent is refused. It is an addition to what `v1` validates, not a change in what a field means. If a check could refuse a value that used to work, it is a breaking change and gets a new version.
 
 ## What would require a new version
 

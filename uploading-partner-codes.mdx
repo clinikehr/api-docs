@@ -22,13 +22,17 @@ across every pharmacy your workspace is connected to.
 
 | System | Resolves against |
 | --- | --- |
-| `gtin` | The item's barcode, exact match. |
+| `gtin` | The item's barcode, exact match. Must be a valid GTIN (see below). |
 | `nafdac` | The item's NAFDAC registration number, exact match. |
 | `ndc` | The item's NDC, exact match. |
 | `rxcui` | An RxNorm code, resolved through the shared medicine index. |
 | `partner` | **Your own code**, resolved through the mapping you upload here. |
 
 An identifier system not in this list is refused for the whole request — never a silent non-match.
+
+<Warning>
+  A `gtin` must be a valid GTIN: 8, 12, 13 or 14 digits, digits only, with a correct GS1 check digit. A request that checks, writes or searches by any other `gtin` value is refused with `400 invalid_gtin`; it is not treated as "no match".
+</Warning>
 
 ## Uploading a list
 
@@ -46,7 +50,7 @@ curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/code
   -H "Content-Type: application/json" \
   -d '{
     "codes": [
-      { "code": "SKU-10021", "barcode": "6001234567890", "name": "Amoxicillin 500mg capsules" },
+      { "code": "SKU-10021", "barcode": "6001234567899", "name": "Amoxicillin 500mg capsules" },
       { "code": "SKU-10088", "name": "Paracetamol 500mg tablets" }
     ]
   }'
@@ -55,6 +59,8 @@ curl -X POST "https://api.clinikehr.com/v1/clinics/YOUR_CLINIC_ID/inventory/code
 Each row needs `code` (your own value) and may supply any of `barcode`, `nafdac_no`, `ndc`, `rxcui`, `name`,
 `strength`, `form`, `pack_size`. Uploading a code you've already sent updates it — a repeat is never rejected as a
 duplicate, and always resolves to the newest values you sent.
+
+A `barcode` that is not a valid GTIN refuses **that row only**: its answer is `"state": "error"` with a `reason` that starts `invalid_gtin` and names the value, and every other row in the file is still processed.
 
 ```json
 {
@@ -73,6 +79,7 @@ duplicate, and always resolves to the newest values you sent.
 | `needs_review` | Something matched by name only, or more than one distinct medicine matched an identifier — a person confirms before this is trusted. |
 | `unmatched` | Nothing in the shared index matched at all. |
 | `rejected` | A reviewer looked and said no. This never changes on its own. |
+| `error` | The row itself was refused and nothing was saved for it: an unknown field, a missing `code`, or a `barcode` that is not a valid GTIN. The `reason` says which. |
 
 <Warning>
   A row is **never** linked on a name match alone — a name is a hint, not a proof of identity, and the wrong match

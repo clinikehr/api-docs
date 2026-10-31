@@ -95,13 +95,13 @@ curl "https://api.clinikehr.com/v1/listings/pharmacies?limit=25" \
 POST /v1/listings/search
 ```
 
-Requires `listing.availability:read`. Searches by an identifier you already hold, or by name, across every clinic listed to your organization — up to 50 results, no pagination.
+Requires `listing.availability:read`. Searches by an identifier you already hold, or by name, across every clinic listed to your organization — up to 50 results, no pagination. A `gtin` must be a valid GTIN (8, 12, 13 or 14 digits with a correct GS1 check digit); anything else is refused with `400 invalid_gtin` rather than answered as "no results".
 
 ```bash
 curl -X POST "https://api.clinikehr.com/v1/listings/search" \
   -H "Authorization: Bearer ehr_live_EXAMPLEKEYID0000000000_EXAMPLESECRET…" \
   -H "Content-Type: application/json" \
-  -d '{"item": {"system": "gtin", "value": "6001234567890"}, "near": {"lat": 6.5, "lng": 3.4, "radius_km": 10}}'
+  -d '{"item": {"system": "gtin", "value": "6001234567899"}, "near": {"lat": 6.5, "lng": 3.4, "radius_km": 10}}'
 ```
 
 A result's `band` can be `unknown` here — see [Stock bands](/stock-bands#the-one-place-a-band-is-unknown-network-search) for what that means and why it's never collapsed into `out`.

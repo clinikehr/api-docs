@@ -683,7 +683,7 @@
             },
             {
               "id": "c3c031c0-33a1-5fea-9804-cf560b542f7f",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -1036,7 +1036,8 @@
                 {
                   "disabled": false,
                   "key": "barcode",
-                  "value": "deserunt aliqua sed"
+                  "value": "deserunt aliqua sed",
+                  "description": "Exact match on the stored barcode. This filter is not checked as a GTIN, so a stored value that is not a valid GTIN can still be found."
                 },
                 {
                   "disabled": false,
@@ -1173,13 +1174,13 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"data\": [\n    {\n      \"id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\",\n      \"name\": \"Paracetamol 500mg Tablets\",\n      \"generic_name\": \"paracetamol\",\n      \"brand_name\": \"Panadol\",\n      \"strength\": \"500mg\",\n      \"dosage_form\": \"tablet\",\n      \"category\": \"analgesic\",\n      \"item_type\": \"medication\",\n      \"unit_of_measure\": \"tablet\",\n      \"is_active\": true,\n      \"identifiers\": [\n        {\n          \"system\": \"gtin\",\n          \"value\": \"6001234567890\"\n        }\n      ],\n      \"retail_price\": {\n        \"amount\": \"12.50\",\n        \"currency\": \"NGN\"\n      },\n      \"updated_at\": \"2026-09-20T10:00:00Z\"\n    }\n  ],\n  \"has_more\": false,\n  \"next_cursor\": null\n}",
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\",\n      \"name\": \"Paracetamol 500mg Tablets\",\n      \"generic_name\": \"paracetamol\",\n      \"brand_name\": \"Panadol\",\n      \"strength\": \"500mg\",\n      \"dosage_form\": \"tablet\",\n      \"category\": \"analgesic\",\n      \"item_type\": \"medication\",\n      \"unit_of_measure\": \"tablet\",\n      \"is_active\": true,\n      \"identifiers\": [\n        {\n          \"system\": \"gtin\",\n          \"value\": \"6001234567899\"\n        }\n      ],\n      \"retail_price\": {\n        \"amount\": \"12.50\",\n        \"currency\": \"NGN\"\n      },\n      \"updated_at\": \"2026-09-20T10:00:00Z\"\n    }\n  ],\n  \"has_more\": false,\n  \"next_cursor\": null\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
               "id": "4fe2b2fb-9790-5180-910f-7f13ec7124bd",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -1740,7 +1741,7 @@
             },
             {
               "id": "a2d25992-a701-5ab1-8722-fe9c3cc4fa2c",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -2204,13 +2205,13 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\",\n  \"name\": \"Paracetamol 500mg Tablets\",\n  \"generic_name\": \"paracetamol\",\n  \"brand_name\": \"Panadol\",\n  \"strength\": \"500mg\",\n  \"dosage_form\": \"tablet\",\n  \"category\": \"analgesic\",\n  \"item_type\": \"medication\",\n  \"unit_of_measure\": \"tablet\",\n  \"is_active\": true,\n  \"identifiers\": [\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567890\"\n    }\n  ],\n  \"retail_price\": {\n    \"amount\": \"12.50\",\n    \"currency\": \"NGN\"\n  },\n  \"updated_at\": \"2026-09-20T10:00:00Z\"\n}",
+              "body": "{\n  \"id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\",\n  \"name\": \"Paracetamol 500mg Tablets\",\n  \"generic_name\": \"paracetamol\",\n  \"brand_name\": \"Panadol\",\n  \"strength\": \"500mg\",\n  \"dosage_form\": \"tablet\",\n  \"category\": \"analgesic\",\n  \"item_type\": \"medication\",\n  \"unit_of_measure\": \"tablet\",\n  \"is_active\": true,\n  \"identifiers\": [\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567899\"\n    }\n  ],\n  \"retail_price\": {\n    \"amount\": \"12.50\",\n    \"currency\": \"NGN\"\n  },\n  \"updated_at\": \"2026-09-20T10:00:00Z\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
               "id": "9139a01e-b5c0-5f7c-a2fa-6a6d16bc28bc",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -2535,7 +2536,7 @@
           "request": {
             "name": "Update a catalogue item.",
             "description": {
-              "content": "Absent field ≠ JSON null. Idempotency-Key OPTIONAL — a PATCH is naturally idempotent.",
+              "content": "Absent field ≠ JSON null. Idempotency-Key OPTIONAL — a PATCH is naturally idempotent. Barcode (`upc`): only a changed value must be a valid GTIN. A `upc` equal, as stored, to the item's current value is accepted even when it is not a valid GTIN, so an item read from the API can be written back. A new or different `upc` that is not a valid GTIN is refused with 400 `invalid_gtin` and nothing is written. To make that comparison the API reads the item's current value with the caller's own key, so a key without `inventory.items:read` cannot send an unchanged invalid value.",
               "type": "text/plain"
             },
             "url": {
@@ -2683,7 +2684,7 @@
             },
             {
               "id": "4f1fdd5a-4a61-5b8e-b32b-074def05e01e",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -3569,7 +3570,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567890\"\n    }\n  ]\n}",
+              "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567899\"\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3621,7 +3622,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567890\"\n    }\n  ]\n}",
+                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567899\"\n    }\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3643,7 +3644,7 @@
             },
             {
               "id": "5e187bec-bbf1-5e9b-9135-dc4c9ed561f0",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -3684,7 +3685,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567890\"\n    }\n  ]\n}",
+                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567899\"\n    }\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3747,7 +3748,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567890\"\n    }\n  ]\n}",
+                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567899\"\n    }\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3810,7 +3811,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567890\"\n    }\n  ]\n}",
+                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567899\"\n    }\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3873,7 +3874,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567890\"\n    }\n  ]\n}",
+                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567899\"\n    }\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3936,7 +3937,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567890\"\n    }\n  ]\n}",
+                  "raw": "{\n  \"entries\": [\n    {\n      \"item_id\": \"9c1e6f2a-9b2b-4a36-8f6a-2f7b1e8b9a02\"\n    },\n    {\n      \"system\": \"gtin\",\n      \"value\": \"6001234567899\"\n    }\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -4114,7 +4115,7 @@
             },
             {
               "id": "e934a75d-5755-5cd4-a039-9945b8b7cf37",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -4631,7 +4632,7 @@
             },
             {
               "id": "d045996a-669b-5aa2-bb43-bdc55f404de1",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -5487,7 +5488,7 @@
             },
             {
               "id": "46f09ea5-df4c-597b-831a-509fd0f20b0d",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -6530,7 +6531,7 @@
             },
             {
               "id": "1d0b6aab-c17f-5353-8cc8-0c2a051fa4f1",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -7136,7 +7137,7 @@
             },
             {
               "id": "eaf5520a-74da-57a9-b341-44c9f6a494a7",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -7688,7 +7689,7 @@
             },
             {
               "id": "a841059d-54d0-56e3-8c39-2ba170e8d62d",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -8243,7 +8244,7 @@
             },
             {
               "id": "186ddab1-e0e2-5c59-95f1-d3d9740a5cad",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -8792,13 +8793,13 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"data\": [\n    {\n      \"code\": \"deserunt culpa dolore\",\n      \"state\": \"needs_review\",\n      \"reason\": \"aliquip laboris veniam\"\n    },\n    {\n      \"code\": \"elit exercitation\",\n      \"state\": \"needs_review\",\n      \"reason\": \"incididunt labore laborum\"\n    }\n  ]\n}",
+              "body": "{\n  \"data\": [\n    {\n      \"code\": \"deserunt culpa dolore\",\n      \"state\": \"unmatched\",\n      \"reason\": \"aliquip laboris veniam\"\n    },\n    {\n      \"code\": \"elit exercitation\",\n      \"state\": \"unmatched\",\n      \"reason\": \"incididunt labore laborum\"\n    }\n  ]\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
               "id": "e69a314a-a1d6-5187-a137-a6e99db464a6",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -9278,7 +9279,7 @@
             },
             {
               "id": "4329b8df-741b-525a-bcd1-f8773ccd44f7",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -10489,7 +10490,7 @@
             },
             {
               "id": "c2f9aa34-5d64-5547-be4c-b5dca276209e",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -10820,7 +10821,7 @@
             },
             {
               "id": "393fca0a-a8c3-5473-ba01-e49460376c35",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -11147,7 +11148,7 @@
             },
             {
               "id": "0a94a5d5-3c57-5568-b1f8-c6d39518735f",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -11497,7 +11498,7 @@
             },
             {
               "id": "bf05ed6b-81c6-591b-ba5e-59f3b4e61771",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -12340,7 +12341,7 @@
             },
             {
               "id": "bb9cbc6d-1420-50c4-8e79-d02ca497bd87",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -12874,7 +12875,7 @@
             },
             {
               "id": "3ad59b25-00f6-5d7e-a264-909933a45711",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -13794,7 +13795,7 @@
             },
             {
               "id": "b740e1c9-8c2e-5577-a99d-c45e4c18277a",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -14664,7 +14665,7 @@
             },
             {
               "id": "b7e7fd62-ed8b-5386-8e19-dbe25f8785f6",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -15071,7 +15072,7 @@
             },
             {
               "id": "6510cca1-e026-5ab5-aeba-2a72c9956556",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -15456,7 +15457,7 @@
             },
             {
               "id": "3502b180-8204-5590-94f6-78825fa7d24c",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -16017,7 +16018,7 @@
             },
             {
               "id": "5075ac02-caea-527f-b2b6-0c158b71e71c",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -16455,7 +16456,7 @@
             },
             {
               "id": "f97945ca-96cc-52bb-97e6-5d533799e54a",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -16895,7 +16896,7 @@
             },
             {
               "id": "b2ad0895-bf96-5386-8727-1e8672fd0dad",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -17486,7 +17487,7 @@
             },
             {
               "id": "be09b7d6-f02b-5e76-a2ff-227a2088c277",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -17973,7 +17974,7 @@
             },
             {
               "id": "7672199f-c4bd-53c8-b184-2267e22231cc",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -18687,7 +18688,7 @@
             },
             {
               "id": "c423227c-908e-5fc1-88bf-f5747a71316a",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -19116,7 +19117,7 @@
             },
             {
               "id": "8a5ac524-3398-5a68-8346-e1e28e851cc7",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -19598,7 +19599,7 @@
             },
             {
               "id": "09bc66a7-58c4-5058-a38b-4fd67193e994",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -20374,7 +20375,7 @@
             },
             {
               "id": "e0029658-8a95-5ba3-a1a2-ca9add17baf2",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -20873,7 +20874,7 @@
             },
             {
               "id": "10c27327-8f7e-5b47-8b97-f8ecb8ba0612",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -21388,7 +21389,7 @@
             },
             {
               "id": "71346e9f-15fa-5406-96e6-0b417cba01ff",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -21896,7 +21897,7 @@
             },
             {
               "id": "c4cda700-8644-53bd-a895-e6d67586e8e3",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -22370,7 +22371,7 @@
             },
             {
               "id": "8c283f02-4ed9-5e3a-892c-501a65af28a5",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -23293,7 +23294,7 @@
             },
             {
               "id": "dcf235ae-b0b8-5788-834b-25fae90e53d1",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -25184,7 +25185,7 @@
             },
             {
               "id": "077f3a4e-8777-5b01-9ddd-57b6dbf14af0",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -25643,7 +25644,7 @@
             },
             {
               "id": "0fc8e746-7950-5183-81a5-d8f751193385",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -26204,7 +26205,7 @@
             },
             {
               "id": "52078e50-8210-5a71-9866-cb52002cdc91",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -26778,7 +26779,7 @@
             },
             {
               "id": "00265bd9-8981-5f76-9745-73c76adb66e9",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -27710,7 +27711,7 @@
             },
             {
               "id": "0cde9f15-744f-54ff-901e-bb05d8b9aefe",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -28320,7 +28321,7 @@
             },
             {
               "id": "9fd550c3-1b44-53d0-b657-9ccd00cb9747",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -28920,7 +28921,7 @@
             },
             {
               "id": "6cc75037-7a84-5c2a-b59c-b2f82e239bb6",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -29382,7 +29383,7 @@
             },
             {
               "id": "9c0223a5-1a24-569f-b1db-b4935b9f476d",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -29856,7 +29857,7 @@
             },
             {
               "id": "f5f2bfe7-1030-5898-9dad-b21bfee9865e",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -30786,7 +30787,7 @@
             },
             {
               "id": "f6744046-b430-5884-836d-135f18940275",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -31363,7 +31364,7 @@
             },
             {
               "id": "a39ddda4-0add-5b78-8d64-957eb394438c",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -31955,7 +31956,7 @@
             },
             {
               "id": "4761bdfa-ead1-54be-8c75-ce7008a7a479",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -32475,7 +32476,7 @@
             },
             {
               "id": "811cc28e-3f17-5a7f-9c50-df71478dfd22",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -33006,7 +33007,7 @@
             },
             {
               "id": "a84c42c7-543e-5eac-9dc5-d8318ecfe60d",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -33478,7 +33479,7 @@
             },
             {
               "id": "d3975560-6f2a-52df-98a6-622826c5af45",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -34109,7 +34110,7 @@
             },
             {
               "id": "48fdb7ec-e855-5c50-b8ef-ecb1f03fd03c",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -34649,7 +34650,7 @@
             },
             {
               "id": "2f261ec4-e05e-561d-9c60-20387db0351e",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -35180,7 +35181,7 @@
             },
             {
               "id": "1eab5a6e-c7e1-5bef-ae9f-af2406a5aa21",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -35652,7 +35653,7 @@
             },
             {
               "id": "53a2778d-9cb9-52d2-8fda-d9a7fbfb84df",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -36283,7 +36284,7 @@
             },
             {
               "id": "bfc23c94-bd57-5ff8-9d8c-4f46b573a236",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -36823,7 +36824,7 @@
             },
             {
               "id": "4a02476b-5c39-5bbd-80a6-cd84ea7fdb67",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -37354,7 +37355,7 @@
             },
             {
               "id": "0e1aa3e7-92f5-5c6a-8855-134430fe963b",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -37826,7 +37827,7 @@
             },
             {
               "id": "6fd0bb45-8b42-5529-9323-d378e63d6e3a",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -38437,7 +38438,7 @@
             },
             {
               "id": "ace802a1-c829-54ed-8cf4-eca85f6a319a",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -38935,7 +38936,7 @@
             },
             {
               "id": "ffb627c8-189c-555d-a375-14731cb6865c",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -39420,7 +39421,7 @@
             },
             {
               "id": "42f32b53-476a-5b7a-9dbd-8e9cac08398a",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -39960,7 +39961,7 @@
             },
             {
               "id": "954648bb-7bb5-52f3-8ab9-0d664e98b3d5",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -40491,7 +40492,7 @@
             },
             {
               "id": "7b585dd2-d233-5d37-bbc1-5d79953fccb6",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -40963,7 +40964,7 @@
             },
             {
               "id": "3c622ddc-8659-5283-93d5-41746e1684a9",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -41566,7 +41567,7 @@
             },
             {
               "id": "9070934c-f232-59af-a032-c4c6aa8ef02d",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -42024,7 +42025,7 @@
             },
             {
               "id": "42f6aa5e-594f-506b-a544-c5610fad96d9",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -42500,7 +42501,7 @@
             },
             {
               "id": "df1868bb-b63e-5901-8571-e42d7f4a7b51",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -43014,7 +43015,7 @@
             },
             {
               "id": "e0dcc99f-e1e9-5cce-8ea2-311a43589453",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -43545,7 +43546,7 @@
             },
             {
               "id": "f14797aa-4c6e-5b86-ae29-bf3f5340a98c",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -44011,7 +44012,7 @@
             },
             {
               "id": "588c2935-dece-57dd-9a05-9097aff2715b",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -44586,7 +44587,7 @@
             },
             {
               "id": "6958a8ce-84cd-5c57-964d-4a2b6aaad3cd",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -45092,7 +45093,7 @@
             },
             {
               "id": "ec27b705-6941-5314-84da-272ae4bc6cfa",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -45549,7 +45550,7 @@
             },
             {
               "id": "743519da-4b2d-5059-9e0c-b652f9e221ca",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -46007,7 +46008,7 @@
             },
             {
               "id": "cd5b9b14-490f-5326-ab3c-77e97847195c",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -46483,7 +46484,7 @@
             },
             {
               "id": "c93dd936-c4d0-5bc0-bc44-0550a910ebd0",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -46997,7 +46998,7 @@
             },
             {
               "id": "0fc1e38d-46ae-5ac2-9a99-9812134540a9",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -47528,7 +47529,7 @@
             },
             {
               "id": "fa61fcc7-abe9-5d58-9dd5-43446b2fa94f",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -47994,7 +47995,7 @@
             },
             {
               "id": "c0f31842-cd97-537a-a83b-e571cfe2a6e1",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -48616,7 +48617,7 @@
             },
             {
               "id": "f43fccea-7c1c-5c4e-a8d3-a9bd75b8f193",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -49130,7 +49131,7 @@
             },
             {
               "id": "31d9b972-5033-5420-8a9c-647d676dea4f",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -49661,7 +49662,7 @@
             },
             {
               "id": "995ad119-c560-58cd-a1f0-64f6beb8cb29",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -50127,7 +50128,7 @@
             },
             {
               "id": "513c11ee-ede3-500f-be56-4bd237ea4f1e",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -50759,7 +50760,7 @@
             },
             {
               "id": "f650e976-783a-542b-8c7c-91eaa33957c8",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -51364,7 +51365,7 @@
             },
             {
               "id": "cdef82af-640c-5033-9da9-83dbf6f4eec4",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -51880,7 +51881,7 @@
             },
             {
               "id": "f4ccf7f4-0acd-595a-b0b7-210f78d6239e",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -52413,7 +52414,7 @@
             },
             {
               "id": "7b32975a-3cdd-5395-9c59-0f998288931a",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -52965,7 +52966,7 @@
             },
             {
               "id": "59311235-6937-574c-acba-273d7e5f0dd6",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -53610,7 +53611,7 @@
             },
             {
               "id": "3f8b5c11-5baa-57b5-a622-d50e95c8fcf6",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -54149,7 +54150,7 @@
             },
             {
               "id": "2212740c-25b5-5b3d-a756-3d94c1923e6a",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -54686,7 +54687,7 @@
             },
             {
               "id": "78e57bec-b90d-52ca-a1d6-39b347afd1b4",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -55310,7 +55311,7 @@
             },
             {
               "id": "73952d59-bc94-5c32-8ff6-68f480912617",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -55907,7 +55908,7 @@
             },
             {
               "id": "653a6c64-b973-52b0-b4c0-029b237e7864",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -56446,7 +56447,7 @@
             },
             {
               "id": "9b3fcddc-630f-5d58-988c-7cc1bb1f0d95",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -56983,7 +56984,7 @@
             },
             {
               "id": "bb7aab19-3207-57d1-bbc5-180691d2dd8a",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -57589,7 +57590,7 @@
             },
             {
               "id": "b534587f-b6a6-568c-8f1b-26660b6ef40c",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -58138,7 +58139,7 @@
             },
             {
               "id": "bd5e1a2f-1315-53a5-829d-d7a15138f514",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -58718,7 +58719,7 @@
             },
             {
               "id": "7239e162-5c40-5f77-ac6a-c87fb1930532",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -59627,7 +59628,7 @@
             },
             {
               "id": "fde6d094-ad6c-5789-9712-19c377b89c96",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -60236,7 +60237,7 @@
             },
             {
               "id": "51d9d3b7-69f7-52a6-aae6-ed3ebc60bc66",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -61017,7 +61018,7 @@
             },
             {
               "id": "1a2bd752-91fa-5cef-b066-f8d4ab0aca74",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -61540,7 +61541,7 @@
             },
             {
               "id": "77e95fc3-92c3-5e4c-84ac-b1377a75b353",
-              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, or a write-off sent without its reason — `reason_required`).",
+              "name": "The request failed validation (unknown query parameter, limit out of range, malformed body, a write-off sent without its reason — `reason_required`, or a `gtin` identifier that is not a valid GTIN — `invalid_gtin`).",
               "originalRequest": {
                 "url": {
                   "path": [
