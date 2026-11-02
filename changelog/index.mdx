@@ -9,6 +9,17 @@ What a developer can build against changes here, newest first. Every entry is so
 
 Tags: **API** (a resource, scope, or endpoint) · **Sandbox** (test keys and synthetic data) · **Portal** (the developer dashboard at [developer.clinikehr.com](https://developer.clinikehr.com)) · **Webhooks** (endpoints, deliveries and the change feed) · **Billing** (workspace plans and usage).
 
+<Update label="November 1, 2026" tags={["API"]} description="TypeScript and Python clients 0.4.0">
+  ## The clients know about the barcode check
+
+  Version 0.4.0 of both clients brings their types in line with the [October 30 change](#requests-with-an-invalid-gtin-are-now-rejected):
+
+  - **Partner code uploads** can return a row with `"state": "error"` (the row was refused, for example an invalid barcode, and nothing was saved for it). The Python client in 0.3.0 did not know this value and could not read a response that contained it, so upgrade before you upload partner codes from Python. See [Uploading partner codes](/uploading-partner-codes).
+  - **Barcodes** (`upc`, and a `gtin` identifier) are documented in the types as needing a valid GTIN, with `400 invalid_gtin` when they do not, and an item update that sends back the same `upc` is accepted.
+
+  Code written for 0.3.0 keeps working, except code that checks every `state` value and treats an unknown one as impossible. Update with `npm install @clinikehr/api@0.4.0` or `pip install clinikehr==0.4.0`.
+</Update>
+
 <Update label="October 30, 2026" tags={["API"]} description="Behaviour change">
   ## Requests with an invalid GTIN are now rejected
 
